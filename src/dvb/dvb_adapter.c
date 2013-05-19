@@ -138,10 +138,7 @@ dvb_adapter_set_enabled(th_dvb_adapter_t *tda, int on)
   tda->tda_enabled = on;
   tda_save(tda);
   if (!on) {
-    gtimer_disarm(&tda->tda_mux_scanner_timer);
-    if (tda->tda_mux_current)
-      dvb_fe_stop(tda->tda_mux_current, 0);
-    dvb_adapter_stop(tda, TDA_OPT_ALL);
+    tda_stop(tda);
   } else {
     tda_init(tda);
   }
@@ -668,7 +665,8 @@ tda_add_from_file(const char *filename)
 /**
  * Initiliase
  */
-static void tda_init (th_dvb_adapter_t *tda)
+static void
+tda_init (th_dvb_adapter_t *tda)
 {
   /* Disabled - ignore */
   if (!tda->tda_enabled || !tda->tda_rootpath) return;
@@ -686,6 +684,19 @@ static void tda_init (th_dvb_adapter_t *tda)
 
   /* Enable mux scanner */
   gtimer_arm(&tda->tda_mux_scanner_timer, dvb_adapter_mux_scanner, tda, 1);
+}
+
+/**
+ * Stop adapter
+ */
+static void
+tda_stop (th_dvb_adapter_t *tda)
+{
+    gtimer_disarm(&tda->tda_mux_scanner_timer);
+    if (tda->tda_mux_current)
+      dvb_fe_stop(tda->tda_mux_current, 0);
+    // FIXME: isn't dvb_fe_stop calling this?
+    dvb_adapter_stop(tda, TDA_OPT_ALL);
 }
 
 /**
