@@ -53,6 +53,7 @@ struct th_dvb_adapter_queue dvb_adapters;
 struct th_dvb_mux_instance_tree dvb_muxes;
 static void *dvb_adapter_input_dvr(void *aux);
 static void tda_init(th_dvb_adapter_t *tda);
+void tda_stop (th_dvb_adapter_t *tda);
 
 /**
  * Adapters that are known to have SNR support
@@ -689,7 +690,7 @@ tda_init (th_dvb_adapter_t *tda)
 /**
  * Stop adapter
  */
-static void
+void
 tda_stop (th_dvb_adapter_t *tda)
 {
     gtimer_disarm(&tda->tda_mux_scanner_timer);
