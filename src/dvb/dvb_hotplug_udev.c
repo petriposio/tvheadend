@@ -16,14 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <locale.h>
-#include <unistd.h>
 #include <string.h>
 #include <regex.h>
-#include <sys/time.h>
-#include <sys/select.h>
 #include <libudev.h>
 
 #include "dvb_hotplug.h"
