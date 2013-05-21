@@ -1,5 +1,5 @@
 /*
- *  TV Input - Linux DVB interface
+ *  Hotplug device monitoring
  *  Copyright (C) 2013 Petri Posio
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -18,6 +18,10 @@
 
 #include "dvb_hotplug.h"
 #include "config.h"
+
+//#include "dvb.h" fails and didn't bother including "everything" so declaring these here
+void dvb_adapter_device_connect(const char* devicepath);
+void dvb_adapter_device_disconnect(const char* devicepath);
 
 /**
  * Hotplug interface functions

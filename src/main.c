@@ -66,6 +66,9 @@
 #include "libav.h"
 #include "plumbing/transcoding.h"
 #endif
+#if ENABLE_HOTPLUG
+#include "dvb/dvb_hotplug.h"
+#endif
 
 /* Command line option struct */
 typedef struct {
@@ -350,6 +353,8 @@ mainloop(void)
       spawn_reaper(); /* reap spawned processes */
 
       comet_flush(); /* Flush idle comet mailboxes */
+
+      dvb_hotplug_poll(); /* Poll every hotplug system for device events */
     }
 
     /* Global timers */
@@ -692,6 +697,10 @@ main(int argc, char **argv)
 
   access_init(opt_firstrun, opt_noacl);
 
+#if ENABLE_HOTPLUG
+  dvb_hotplug_init();
+#endif
+
 #if ENABLE_LINUXDVB
   muxes_init();
   dvb_init(adapter_mask, opt_dvb_raw);
@@ -770,6 +779,10 @@ main(int argc, char **argv)
   //       we need to disable the gtimer_arm call in epg_save()
   pthread_mutex_lock(&global_lock);
   epg_save(NULL);
+
+#if ENABLE_HOTPLUG
+  dvb_hotplug_destroy();
+#endif
 
 #if ENABLE_TIMESHIFT
   timeshift_term();

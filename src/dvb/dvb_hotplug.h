@@ -1,5 +1,5 @@
 /*
- *  TV Input - Linux DVB interface
+ *  Hotplug device monitoring
  *  Copyright (C) 2013 Petri Posio
  *
  *  This program is free software: you can redistribute it and/or modify

@@ -1,5 +1,5 @@
 /*
- *  TV Input - Linux DVB interface
+ *  udev hotplug monitoring
  *  Copyright (C) 2013 Petri Posio
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -50,12 +50,6 @@ static struct dvb_subsystem_counter *subsystem_counter_list = NULL;
 
 static struct udev *udev;
 static struct udev_monitor *udev_mon;
-
-static int
-str_prefix(const char *string, const char *prefix)
-{
-  return strncmp(string, prefix, strlen(prefix)) == 0;
-}
 
 static void
 str_substring(char *destination, int max_size, const char *source, int start, int end)
@@ -211,6 +205,16 @@ dvb_hotplug_udev_destroy()
     udev_unref(udev);
 
   regfree(&dvb_regex);
+  int i;
+  for (i = 0; i < SUBSYSTEM_COUNT; i++)
+    regfree(&dvb_required_subsystem_regex[i]);
+
+  while (subsystem_counter_list)
+  {
+    struct dvb_subsystem_counter *temp = subsystem_counter_list;
+    subsystem_counter_list = temp->next;
+    free(temp);
+  }
 }
 
 void
