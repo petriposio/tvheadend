@@ -434,6 +434,17 @@ dvb_adapter_find_by_identifier(const char *identifier)
   return NULL;
 }
 
+th_dvb_adapter_t *
+dvb_adapter_find_by_devicepath(const char *path)
+{
+  th_dvb_adapter_t *tda;
+
+  TAILQ_FOREACH(tda, &dvb_adapters, tda_global_link)
+    if(!strcmp(identifier, tda->tda_rootpath))
+      return tda;
+  return NULL;
+}
+
 
 /**
  *
