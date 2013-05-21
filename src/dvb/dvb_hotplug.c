@@ -17,46 +17,61 @@
  */
 
 #include "dvb_hotplug.h"
-#include "config.h"
+//#include "config.h"
 
-static dvb_hotplug_interface
+#define ENABLE_UDEV 1
+
+/**
+ * Hotplug interface functions
+ */
+struct dvb_hotplug_interface {
+    void (*hotplug_init)(void);
+    void (*hotplug_destroy)(void);
+    void (*hotplug_poll)(void);
+};
+
+static const struct dvb_hotplug_interface const
 hotplug_systems[] = {
-  NULL
+#if ENABLE_UDEV
+  (struct dvb_hotplug_interface)
+  {
+    .hotplug_init = &dvb_hotplug_udev_init,
+    .hotplug_destroy = &dvb_hotplug_udev_destroy,
+    .hotplug_poll = &dvb_hotplug_udev_poll
+  },
+#endif
 };
 
 void
 dvb_hotplug_init()
 {
-  dvb_hotplug_interface *system = hotplug_systems;
-
-  while (system != NULL)
+  const struct dvb_hotplug_interface *system = hotplug_systems;
+  int i;
+  for (i = 0; i < sizeof(hotplug_systems) / sizeof(struct dvb_hotplug_interface); i++)
   {
-    system->hotplug_init();
-    system++;
+    system[i].hotplug_init();
   }
 }
 
 void
 dvb_hotplug_destroy()
 {
-  dvb_hotplug_interface *system = hotplug_systems;
-
-  while (system != NULL)
+  const struct dvb_hotplug_interface *system = hotplug_systems;
+  int i;
+  for (i = 0; i < sizeof(hotplug_systems) / sizeof(struct dvb_hotplug_interface); i++)
   {
-    system->hotplug_destroy();
-    system++;
+    system[i].hotplug_destroy();
   }
 }
 
 void
 dvb_hotplug_poll(void)
 {
-  dvb_hotplug_interface *system = hotplug_systems;
-
-  while (system != NULL)
+  const struct dvb_hotplug_interface *system = hotplug_systems;
+  int i;
+  for (i = 0; i < sizeof(hotplug_systems) / sizeof(struct dvb_hotplug_interface); i++)
   {
-    system->hotplug_poll();
-    system++;
+    system[i].hotplug_poll();
   }
 }
 
@@ -72,3 +87,14 @@ dvb_hotplug_device_disconnect(const char *devicepath)
 
 }
 
+int
+main(int argc, char **argv)
+{
+  dvb_hotplug_init();
+
+  while (1)
+    dvb_hotplug_poll();
+
+  dvb_hotplug_destroy();
+  return 0;
+}

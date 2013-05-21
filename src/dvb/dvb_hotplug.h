@@ -24,18 +24,7 @@
 #include <sched.h>
 #include <unistd.h>
 
-#include <libudev.h>
-
-#include "tvhlog.h"
-
-/**
- * Hotplug interface functions
- */
-struct dvb_hotplug_interface {
-    void (*hotplug_init)(void);
-    void (*hotplug_destroy)(void);
-    void (*hotplug_poll)(void);
-};
+//#include "tvhlog.h"
 
 /**
  * Hotplug common functions
@@ -45,8 +34,8 @@ void dvb_hotplug_destroy(void);
 void dvb_hotplug_poll(void);
 
 /**
- * Hotplug system event handlers. 
- * devicepath can be NULL if it's unknown.
+ * Hotplug subsystems call these to notify about device hotplug.
+ * devicepath: NULL means the exact device path is unknown.
  */
 void dvb_hotplug_device_connect(const char *devicepath);
 void dvb_hotplug_device_disconnect(const char *devicepath);
@@ -54,6 +43,9 @@ void dvb_hotplug_device_disconnect(const char *devicepath);
 /**
  * libudev
  */
+void dvb_hotplug_udev_init();
+void dvb_hotplug_udev_destroy();
+void dvb_hotplug_udev_poll();
 
 #endif
 

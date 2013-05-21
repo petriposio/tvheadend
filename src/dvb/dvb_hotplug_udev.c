@@ -24,8 +24,21 @@
 #include <sys/select.h>
 #include <libudev.h>
 
-struct udev *udev;
-struct udev_monitor *udev_mon;
+#include "dvb_hotplug.h"
+
+static struct udev *udev;
+static struct udev_monitor *udev_mon;
+
+static void
+dvb_hotplug_udev_handle_device(struct udev_device *dev)
+{
+  printf("Got Device\n");
+  printf("   Node: %s\n", udev_device_get_devnode(dev));
+  printf("   Subsystem: %s\n", udev_device_get_subsystem(dev));
+  printf("   Devtype: %s\n", udev_device_get_devtype(dev));
+
+  printf("   Action: %s\n",udev_device_get_action(dev));
+}
 
 void
 dvb_hotplug_udev_init()
@@ -35,6 +48,9 @@ dvb_hotplug_udev_init()
     return; // TODO: error message
 
   udev_mon = udev_monitor_new_from_netlink(udev, "udev");
+
+  //udev_monitor_filter_add_match_subsystem_devtype(udev_mon, "DVB", NULL);
+
   udev_monitor_enable_receiving(udev_mon);
 }
 
@@ -51,15 +67,15 @@ dvb_hotplug_udev_destroy()
 void
 dvb_hotplug_udev_poll()
 {
-  if (!udev)
-    return;
-
   struct udev_device *dev;
 
   int fd;
   fd_set fds;
   struct timeval tv;
   int retval;
+
+  if (!udev)
+    return;
 
   fd = udev_monitor_get_fd(udev_mon);
 
@@ -70,19 +86,14 @@ dvb_hotplug_udev_poll()
     tv.tv_sec = 0;
     tv.tv_usec = 0;
 
-    retval = select(fd+1, &fds, NULL, NULL, &tv);
+    retval = select(fd + 1, &fds, NULL, NULL, &tv);
 
     if (retval > 0 && FD_ISSET(fd, &fds))
     {
       dev = udev_monitor_receive_device(udev_mon);
       if (dev)
       {
-        printf("Got Device\n");
-        printf("   Node: %s\n", udev_device_get_devnode(dev));
-        printf("   Subsystem: %s\n", udev_device_get_subsystem(dev));
-        printf("   Devtype: %s\n", udev_device_get_devtype(dev));
-
-        printf("   Action: %s\n",udev_device_get_action(dev));
+        dvb_hotplug_udev_handle_device(dev);
         udev_device_unref(dev);
       }
     }
@@ -96,14 +107,3 @@ dvb_hotplug_udev_poll()
   }
 }
 
-int
-main(int argc, char **argv)
-{
-  dvb_hotplug_udev_init();
-
-  while (1)
-    dvb_hotplug_udev_poll();
-
-  dvb_hotplug_udev_destroy();
-  return 0;
-}
