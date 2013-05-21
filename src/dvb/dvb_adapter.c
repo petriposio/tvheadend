@@ -690,7 +690,7 @@ tda_init (th_dvb_adapter_t *tda)
 /**
  * Stop adapter
  */
-void
+static void
 tda_stop (th_dvb_adapter_t *tda)
 {
     gtimer_disarm(&tda->tda_mux_scanner_timer);
@@ -698,6 +698,36 @@ tda_stop (th_dvb_adapter_t *tda)
       dvb_fe_stop(tda->tda_mux_current, 0);
     // FIXME: isn't dvb_fe_stop calling this?
     dvb_adapter_stop(tda, TDA_OPT_ALL);
+}
+
+/**
+ *
+ */
+void
+dvb_adapter_device_connect(const char* devicepath)
+{
+  lock_assert(&global_lock);
+
+  th_dvb_adapter_t *tda = dvb_adapter_find_by_devicepath(devicepath);
+  if (tda) {
+    tda_init(tda);
+  } else {
+    // TODO: new device, initialize it
+  }
+}
+
+/**
+ *
+ */
+void
+dvb_adapter_device_disconnect(const char* devicepath)
+{
+  lock_assert(&global_lock);
+
+  th_dvb_adapter_t *tda = dvb_adapter_find_by_devicepath(devicepath);
+  if (tda) {
+    tda_stop(tda);
+  }
 }
 
 /**
