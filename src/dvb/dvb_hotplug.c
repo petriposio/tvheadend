@@ -79,13 +79,13 @@ dvb_hotplug_poll(void)
 void
 dvb_hotplug_device_connect(const char *devicepath)
 {
-  printf("connect: %s\n", devicepath);
+  dvb_adapter_device_disconnect(devicepath);
 }
 
 void
 dvb_hotplug_device_disconnect(const char *devicepath)
 {
-  printf("disconnect: %s\n", devicepath);
+  dvb_adapter_device_disconnect(devicepath);
 }
 
 int
