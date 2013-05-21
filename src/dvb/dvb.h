@@ -350,6 +350,10 @@ void dvb_adapter_init(uint32_t adapter_mask, const char *rawfile);
 
 void dvb_adapter_mux_scanner(void *aux);
 
+void dvb_adapter_device_connect(const char* devicepath);
+
+void dvb_adapter_device_disconnect(const char* devicepath);
+
 void dvb_adapter_start (th_dvb_adapter_t *tda, int opt);
 
 void dvb_adapter_stop (th_dvb_adapter_t *tda, int opt);
