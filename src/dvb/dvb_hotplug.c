@@ -31,7 +31,8 @@ struct dvb_hotplug_interface {
 };
 
 static const struct dvb_hotplug_interface const
-hotplug_systems[] = {
+hotplug_systems[] =
+{
 #if ENABLE_UDEV
   (struct dvb_hotplug_interface)
   {
@@ -78,13 +79,13 @@ dvb_hotplug_poll(void)
 void
 dvb_hotplug_device_connect(const char *devicepath)
 {
-
+  printf("connect: %s\n", devicepath);
 }
 
 void
 dvb_hotplug_device_disconnect(const char *devicepath)
 {
-
+  printf("disconnect: %s\n", devicepath);
 }
 
 int

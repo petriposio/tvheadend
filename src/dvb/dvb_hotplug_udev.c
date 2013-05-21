@@ -20,48 +20,123 @@
 #include <stdlib.h>
 #include <locale.h>
 #include <unistd.h>
+#include <string.h>
+#include <regex.h>
 #include <sys/time.h>
 #include <sys/select.h>
 #include <libudev.h>
 
 #include "dvb_hotplug.h"
 
+static const char *device_subsystem_dvb = "dvb";
+static const char *device_action_add = "add";
+static const char *device_action_remove = "remove";
+
+static const int string_buffer_size = 200;
+
+static regex_t dvb_regex;
+static const char *dvb_regex_string = "^/dev/dvb/(adapter[^/]*?)/([^/]*?)$";
+static const char *dvb_path = "/dev/dvb";
+
+static const char *device_required_subsystems[] =
+{
+  "frontend.*",
+  "demux.*",
+  "dvr.*"
+};
+
 static struct udev *udev;
 static struct udev_monitor *udev_mon;
+
+static int
+str_prefix(const char *string, const char *prefix)
+{
+  return strncmp(string, prefix, strlen(prefix)) == 0;
+}
+
+static void
+str_substring(char *destination, int max_size, const char *source, int start, int end)
+{
+  snprintf(destination, max_size, "%.*s", end - start, source + start);
+}
+
+static int
+dvb_hotplug_udev_is_adapter_ready(const char *adapter, const char *adapter_subsystem)
+{
+  // TODO: wait for the whole device to be ready
+  return 1;
+}
 
 static void
 dvb_hotplug_udev_handle_device(struct udev_device *dev)
 {
-  printf("Got Device\n");
-  printf("   Node: %s\n", udev_device_get_devnode(dev));
-  printf("   Subsystem: %s\n", udev_device_get_subsystem(dev));
-  printf("   Devtype: %s\n", udev_device_get_devtype(dev));
+  const char *path, *action;
+  char adapterpath[string_buffer_size], adapter[string_buffer_size], adapter_subsystem[string_buffer_size];
 
-  printf("   Action: %s\n",udev_device_get_action(dev));
+  path = udev_device_get_devnode(dev);
+  action = udev_device_get_action(dev);
+
+  if (path)
+  {
+    regmatch_t matches[3];
+    if (regexec(&dvb_regex, path, 3, matches, 0) == 0)
+    {
+      if (matches[1].rm_so >= 0 && matches[2].rm_so >= 0)
+      {
+        str_substring(adapter, string_buffer_size, path, matches[1].rm_so, matches[1].rm_eo);
+        str_substring(adapter_subsystem, string_buffer_size, path, matches[2].rm_so, matches[2].rm_eo);
+
+        snprintf(adapterpath, string_buffer_size, "%s/%s", dvb_path, adapter);
+
+        if (strcmp(device_action_remove, action) == 0)
+        {
+          dvb_hotplug_device_disconnect(adapterpath);
+        }
+        else if (strcmp(device_action_add, action) == 0)
+        {
+          if (dvb_hotplug_udev_is_adapter_ready(adapter, adapter_subsystem))
+            dvb_hotplug_device_connect(adapterpath);
+        }
+      }
+    }
+  }
 }
 
 void
 dvb_hotplug_udev_init()
 {
   udev = udev_new();
-  if(!udev)
-    return; // TODO: error message
+  if(udev)
+    udev_mon = udev_monitor_new_from_netlink(udev, "udev");
 
-  udev_mon = udev_monitor_new_from_netlink(udev, "udev");
+  if (!udev || !udev_mon)
+  {
+    // TODO: error message
+    if (udev)
+    {
+      udev_unref(udev);
+      udev = NULL;
+    }
+    return;
+  }
 
-  //udev_monitor_filter_add_match_subsystem_devtype(udev_mon, "DVB", NULL);
-
+  udev_monitor_filter_add_match_subsystem_devtype(udev_mon, device_subsystem_dvb, NULL);
   udev_monitor_enable_receiving(udev_mon);
+
+  if (regcomp(&dvb_regex, dvb_regex_string, REG_EXTENDED))
+    printf("Error compiling regex");
 }
 
 void
 dvb_hotplug_udev_destroy()
 {
-  if (udev)
-  {
+  if (udev_mon)
     udev_monitor_unref(udev_mon);
+
+  if (udev)
     udev_unref(udev);
-  }
+
+  regfree(&dvb_regex);
 }
 
 void
