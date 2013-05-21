@@ -24,8 +24,6 @@
 #include <sched.h>
 #include <unistd.h>
 
-//#include "tvhlog.h"
-
 /**
  * Hotplug common functions
  */
@@ -43,9 +41,9 @@ void dvb_hotplug_device_disconnect(const char *devicepath);
 /**
  * libudev
  */
-void dvb_hotplug_udev_init();
-void dvb_hotplug_udev_destroy();
-void dvb_hotplug_udev_poll();
+void dvb_hotplug_udev_init(void);
+void dvb_hotplug_udev_destroy(void);
+void dvb_hotplug_udev_poll(void);
 
 #endif
 

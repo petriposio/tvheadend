@@ -179,6 +179,14 @@ SRCS-${CONFIG_LINUXDVB} += \
 SRCS-${CONFIG_INOTIFY} += \
   src/dvr/dvr_inotify.c \
 
+# DVB hotplug
+SRCS-${CONFIG_HOTPLUG} += \
+	src/dvb/dvb_hotplug.c \
+
+# libudev
+SRCS-${CONFIG_UDEV} += \
+	src/dvb/dvb_hotplug_udev.c \
+
 # V4L
 SRCS-${CONFIG_V4L} += \
 	src/v4l.c \

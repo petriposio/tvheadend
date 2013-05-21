@@ -27,6 +27,7 @@ OPTIONS=(
   "zlib:auto"
   "libav:auto"
   "inotify:auto"
+  "udev:auto"
   "bundle:no"
   "dvbcsa:no"
 )
@@ -156,6 +157,18 @@ if enabled_or_auto inotify; then
     enable inotify
   elif enabled inotify; then
     die "Inotify support not found (use --disable-inotify)"
+  fi
+fi
+
+#
+# Hotplug
+#
+if enabled_or_auto udev; then
+  if check_pkg libudev; then
+    enable udev
+    enable hotplug
+  elif enabled udev; then
+    die "libudev development support not found (use --disable-udev)"
   fi
 fi
 

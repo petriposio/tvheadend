@@ -17,9 +17,7 @@
  */
 
 #include "dvb_hotplug.h"
-//#include "config.h"
-
-#define ENABLE_UDEV 1
+#include "config.h"
 
 /**
  * Hotplug interface functions
@@ -31,8 +29,7 @@ struct dvb_hotplug_interface {
 };
 
 static const struct dvb_hotplug_interface const
-hotplug_systems[] =
-{
+hotplug_systems[] = {
 #if ENABLE_UDEV
   (struct dvb_hotplug_interface)
   {
@@ -88,14 +85,3 @@ dvb_hotplug_device_disconnect(const char *devicepath)
   dvb_adapter_device_disconnect(devicepath);
 }
 
-int
-main(int argc, char **argv)
-{
-  dvb_hotplug_init();
-
-  while (1)
-    dvb_hotplug_poll();
-
-  dvb_hotplug_destroy();
-  return 0;
-}
