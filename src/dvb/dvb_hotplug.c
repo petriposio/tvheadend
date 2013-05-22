@@ -18,10 +18,7 @@
 
 #include "dvb_hotplug.h"
 #include "tvheadend.h"
-
-//#include "dvb.h" fails and didn't bother including "everything" so declaring these here
-void dvb_adapter_device_connect(const char* devicepath);
-void dvb_adapter_device_disconnect(const char* devicepath);
+#include "dvb.h"
 
 /**
  * Hotplug interface functions
