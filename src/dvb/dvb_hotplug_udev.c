@@ -16,11 +16,13 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <regex.h>
 #include <libudev.h>
 
 #include "dvb_hotplug.h"
+#include "tvhlog.h"
 
 static const char *device_subsystem_dvb = "dvb";
 static const char *device_action_add = "add";
@@ -34,8 +36,7 @@ static const char *dvb_path = "/dev/dvb";
 
 #define SUBSYSTEM_COUNT 3
 static regex_t dvb_required_subsystem_regex[SUBSYSTEM_COUNT];
-static const char *dvb_required_subsystems[] =
-{
+static const char *dvb_required_subsystem_regex_string[] = {
   "frontend.*",
   "demux.*",
   "dvr.*"
@@ -61,7 +62,7 @@ str_substring(char *destination, int max_size, const char *source, int start, in
  * adapter: name of the connected adapter [eg. adapter0]
  * adapter_subsystem: subsystem that generated the notification [eg. demux0]
  *
- * Returns 1 if all of the important subsystems of the adapter are connected.
+ * Returns 1 if all of the required subsystems of the adapter are connected.
  * Returns 0 otherwise.
  */
 static int
@@ -69,16 +70,16 @@ dvb_hotplug_udev_is_adapter_ready(const char *adapter, const char *adapter_subsy
 {
   regmatch_t match[1];
 
-  // Check whether this subsystem is important or not.
+  // Check whether this subsystem is required or not.
   int subsystem_index;
   for (subsystem_index = 0; subsystem_index < SUBSYSTEM_COUNT; subsystem_index++)
   {
     if (regexec(&dvb_required_subsystem_regex[subsystem_index], adapter_subsystem, 1, match, 0) == 0)
-      goto important_subsystem;
+      goto required_subsystem;
   }
   return 0;
 
-important_subsystem: ;
+required_subsystem: ;
   // Search subsystem list if this adapter exists.
   struct dvb_subsystem_counter *adapter_counter = subsystem_counter_list;
   while (adapter_counter)
@@ -93,8 +94,6 @@ important_subsystem: ;
   {
     // Subsystem list didn't contain the adapter so create a new counter and add it to the list.
     adapter_counter = malloc(sizeof(struct dvb_subsystem_counter));
-    if (!adapter_counter)
-      ; // TODO: malloc error
 
     strncpy(adapter_counter->adapter, adapter, STRING_BUFFER_SIZE - 1);
     adapter_counter->adapter[STRING_BUFFER_SIZE - 1] = '\0';
@@ -137,6 +136,8 @@ dvb_hotplug_udev_handle_device(struct udev_device *dev)
   path = udev_device_get_devnode(dev);
   action = udev_device_get_action(dev);
 
+  tvhlog(LOG_DEBUG, "udev", "dvb device event %s (%s)", path, action);
+
   if (path)
   {
     regmatch_t matches[3];
@@ -167,31 +168,43 @@ void
 dvb_hotplug_udev_init()
 {
   udev = udev_new();
-  if(udev)
-    udev_mon = udev_monitor_new_from_netlink(udev, "udev");
+  if(!udev)
+    goto udev_init_failure;
 
-  if (!udev || !udev_mon)
-  {
-    // TODO: udev init error message
-    if (udev)
-    {
-      udev_unref(udev);
-      udev = NULL;
-    }
-    return;
-  }
+  udev_mon = udev_monitor_new_from_netlink(udev, "udev");
+  if (!udev_mon)
+    goto udev_init_failure;
 
-  udev_monitor_filter_add_match_subsystem_devtype(udev_mon, device_subsystem_dvb, NULL);
-  udev_monitor_enable_receiving(udev_mon);
+  if (udev_monitor_filter_add_match_subsystem_devtype(udev_mon, device_subsystem_dvb, NULL) != 0)
+    goto udev_init_failure;
+
+  if (udev_monitor_enable_receiving(udev_mon) != 0)
+    goto udev_init_failure;
+
+  tvhlog(LOG_INFO, "udev", "Hotplug monitoring started");
 
   if (regcomp(&dvb_regex, dvb_regex_string, REG_EXTENDED))
-    ; // regex compiling error message? (shouldn't be needed)
+    goto udev_init_failure;
 
   int i;
   for (i = 0; i < SUBSYSTEM_COUNT; i++)
   {
-    if (regcomp(&dvb_required_subsystem_regex[i], dvb_required_subsystems[i], REG_EXTENDED))
-      ; // regex compiling error message? (shouldn't be needed)
+    if (regcomp(&dvb_required_subsystem_regex[i], dvb_required_subsystem_regex_string[i], REG_EXTENDED))
+      goto udev_init_failure;
+  }
+  return;
+
+udev_init_failure: ;
+  tvhlog(LOG_ERR, "udev", "Failed to initialise hotplug monitoring");
+  if (udev)
+  {
+    udev_unref(udev);
+    udev = NULL;
+  }
+  if (udev_mon)
+  {
+    udev_monitor_unref(udev_mon);
+    udev_mon = NULL;
   }
 }
 
@@ -249,11 +262,13 @@ dvb_hotplug_udev_poll()
         dvb_hotplug_udev_handle_device(dev);
         udev_device_unref(dev);
       }
+      else
+        ; // TODO: udev monitor device read error message?
     }
     else
     {
-      if (retval == -1)
-        ; // TODO: udev device read error message?
+      if (retval < 0)
+        ; // TODO: select read error message?
 
       break;
     }

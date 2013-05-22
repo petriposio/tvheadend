@@ -706,13 +706,22 @@ tda_stop (th_dvb_adapter_t *tda)
 void
 dvb_adapter_device_connect(const char* devicepath)
 {
+  tvhlog(LOG_INFO, "dvb", "Adapter \"%s\" connected", devicepath);
+
   lock_assert(&global_lock);
 
-  th_dvb_adapter_t *tda = dvb_adapter_find_by_devicepath(devicepath);
-  if (tda) {
-    tda_init(tda);
-  } else {
-    // TODO: new device, initialize it
+  if (devicepath)
+  {
+    th_dvb_adapter_t *tda = dvb_adapter_find_by_devicepath(devicepath);
+    if (tda) {
+      tda_init(tda);
+    } else {
+      // TODO: new device, initialize it
+    }
+  }
+  else
+  {
+    // TODO: the connected device is unknown so check if there has been appeared a new dvb adapter
   }
 }
 
@@ -722,11 +731,20 @@ dvb_adapter_device_connect(const char* devicepath)
 void
 dvb_adapter_device_disconnect(const char* devicepath)
 {
+  tvhlog(LOG_INFO, "dvb", "Adapter \"%s\" disconnected", devicepath);
+
   lock_assert(&global_lock);
 
-  th_dvb_adapter_t *tda = dvb_adapter_find_by_devicepath(devicepath);
-  if (tda) {
-    tda_stop(tda);
+  if (devicepath)
+  {
+    th_dvb_adapter_t *tda = dvb_adapter_find_by_devicepath(devicepath);
+    if (tda) {
+      tda_stop(tda);
+    }
+  }
+  else
+  {
+    // TODO: the disconnected device is unknown so check if one of the dvb adapters has been disappeared
   }
 }
 

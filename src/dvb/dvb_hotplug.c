@@ -17,7 +17,7 @@
  */
 
 #include "dvb_hotplug.h"
-#include "config.h"
+#include "tvheadend.h"
 
 //#include "dvb.h" fails and didn't bother including "everything" so declaring these here
 void dvb_adapter_device_connect(const char* devicepath);
@@ -80,12 +80,16 @@ dvb_hotplug_poll(void)
 void
 dvb_hotplug_device_connect(const char *devicepath)
 {
-  dvb_adapter_device_disconnect(devicepath);
+  pthread_mutex_lock(&global_lock);
+  dvb_adapter_device_connect(devicepath);
+  pthread_mutex_unlock(&global_lock);
 }
 
 void
 dvb_hotplug_device_disconnect(const char *devicepath)
 {
+  pthread_mutex_lock(&global_lock);
   dvb_adapter_device_disconnect(devicepath);
+  pthread_mutex_unlock(&global_lock);
 }
 

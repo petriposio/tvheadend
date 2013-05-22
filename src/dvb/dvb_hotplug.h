@@ -19,11 +19,6 @@
 #ifndef DVB_HOTPLUG_H_
 #define DVB_HOTPLUG_H_
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <sched.h>
-#include <unistd.h>
-
 /**
  * Hotplug common functions
  */
