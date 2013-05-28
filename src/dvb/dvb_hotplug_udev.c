@@ -21,6 +21,7 @@
 #include <regex.h>
 #include <libudev.h>
 
+#include "queue.h"
 #include "dvb_hotplug.h"
 #include "tvhlog.h"
 
@@ -43,127 +44,33 @@ static const char *dvb_required_subsystem_regex_string[] = {
 };
 struct dvb_subsystem_counter
 {
-  struct dvb_subsystem_counter *next;
   char adapter[STRING_BUFFER_SIZE];
   int connected[SUBSYSTEM_COUNT];
+  LIST_ENTRY(dvb_subsystem_counter) subsystem_link;
 };
-static struct dvb_subsystem_counter *subsystem_counter_list = NULL;
+static LIST_HEAD(dvb_subsystem_counter_list, dvb_subsystem_counter) subsystem_counter_head =
+    LIST_HEAD_INITIALIZER(subsystem_counter_head);
 
 static struct udev *udev;
 static struct udev_monitor *udev_mon;
 
-static void
-str_substring(char *destination, int max_size, const char *source, int start, int end)
-{
-  snprintf(destination, max_size, "%.*s", end - start, source + start);
-}
+/**
+ * Static helper function declarations
+ */
+static void str_substring(char *destination, int max_size, const char *source, int start, int end);
+
+static void dvb_hotplug_udev_handle_device(struct udev_device *dev);
+static int dvb_hotplug_udev_is_adapter_ready(const char *adapter, const char *adapter_subsystem);
+
+static int get_required_subsystem_index(const char *subsystem);
+static struct dvb_subsystem_counter* create_subsystem_counter(const char *adapter);
+static struct dvb_subsystem_counter* find_subsystem_counter_by_adapter(const char *adapter);
+
 
 /**
- * adapter: name of the connected adapter [eg. adapter0]
- * adapter_subsystem: subsystem that generated the notification [eg. demux0]
- *
- * Returns 1 if all of the required subsystems of the adapter are connected.
- * Returns 0 otherwise.
+ * Init
+ * Starts udev monitoring and compiles regexes.
  */
-static int
-dvb_hotplug_udev_is_adapter_ready(const char *adapter, const char *adapter_subsystem)
-{
-  regmatch_t match[1];
-
-  // Check whether this subsystem is required or not.
-  int subsystem_index;
-  for (subsystem_index = 0; subsystem_index < SUBSYSTEM_COUNT; subsystem_index++)
-  {
-    if (regexec(&dvb_required_subsystem_regex[subsystem_index], adapter_subsystem, 1, match, 0) == 0)
-      goto required_subsystem;
-  }
-  return 0;
-
-required_subsystem: ;
-  // Search subsystem list if this adapter exists.
-  struct dvb_subsystem_counter *adapter_counter = subsystem_counter_list;
-  while (adapter_counter)
-  {
-    if (strcmp(adapter, adapter_counter->adapter) == 0)
-      break;
-
-    adapter_counter = adapter_counter->next;
-  }
-
-  if (!adapter_counter)
-  {
-    // Subsystem list didn't contain the adapter so create a new counter and add it to the list.
-    adapter_counter = malloc(sizeof(struct dvb_subsystem_counter));
-
-    strncpy(adapter_counter->adapter, adapter, STRING_BUFFER_SIZE - 1);
-    adapter_counter->adapter[STRING_BUFFER_SIZE - 1] = '\0';
-
-    int i;
-    for (i = 0; i < SUBSYSTEM_COUNT; i++)
-      adapter_counter->connected[i] = 0;
-
-    adapter_counter->next = subsystem_counter_list;
-    subsystem_counter_list = adapter_counter;
-  }
-
-  adapter_counter->connected[subsystem_index] = 1;
-
-  // Check if every important subsystem is ready.
-  int i;
-  for (i = 0; i < SUBSYSTEM_COUNT; i++)
-  {
-    if (!adapter_counter->connected[i])
-      return 0;
-  }
-
-  // Adapter is ready. Remove it from the counter list.
-  struct dvb_subsystem_counter **previous_counter = &subsystem_counter_list;
-  while (*previous_counter != adapter_counter)
-    previous_counter = &(*previous_counter)->next;
-
-  *previous_counter = adapter_counter->next;
-
-  free(adapter_counter);
-  return 1;
-}
-
-static void
-dvb_hotplug_udev_handle_device(struct udev_device *dev)
-{
-  const char *path, *action;
-  char adapterpath[STRING_BUFFER_SIZE], adapter[STRING_BUFFER_SIZE], adapter_subsystem[STRING_BUFFER_SIZE];
-
-  path = udev_device_get_devnode(dev);
-  action = udev_device_get_action(dev);
-
-  tvhlog(LOG_DEBUG, "udev", "dvb device event %s (%s)", path, action);
-
-  if (path)
-  {
-    regmatch_t matches[3];
-    if (regexec(&dvb_regex, path, 3, matches, 0) == 0)
-    {
-      if (matches[1].rm_so >= 0 && matches[2].rm_so >= 0)
-      {
-        str_substring(adapter, STRING_BUFFER_SIZE, path, matches[1].rm_so, matches[1].rm_eo);
-        str_substring(adapter_subsystem, STRING_BUFFER_SIZE, path, matches[2].rm_so, matches[2].rm_eo);
-
-        snprintf(adapterpath, STRING_BUFFER_SIZE, "%s/%s", dvb_path, adapter);
-
-        if (strcmp(device_action_remove, action) == 0)
-        {
-          dvb_hotplug_device_disconnect(adapterpath);
-        }
-        else if (strcmp(device_action_add, action) == 0)
-        {
-          if (dvb_hotplug_udev_is_adapter_ready(adapter, adapter_subsystem))
-            dvb_hotplug_device_connect(adapterpath);
-        }
-      }
-    }
-  }
-}
-
 void
 dvb_hotplug_udev_init()
 {
@@ -208,6 +115,9 @@ udev_init_failure: ;
   }
 }
 
+/**
+ * Destroy
+ */
 void
 dvb_hotplug_udev_destroy()
 {
@@ -222,14 +132,18 @@ dvb_hotplug_udev_destroy()
   for (i = 0; i < SUBSYSTEM_COUNT; i++)
     regfree(&dvb_required_subsystem_regex[i]);
 
-  while (subsystem_counter_list)
+  struct dvb_subsystem_counter *temp;
+  while (!LIST_EMPTY(&subsystem_counter_head))
   {
-    struct dvb_subsystem_counter *temp = subsystem_counter_list;
-    subsystem_counter_list = temp->next;
+    temp = LIST_FIRST(&subsystem_counter_head);
+    LIST_REMOVE(temp, subsystem_link);
     free(temp);
   }
 }
 
+/**
+ * Poll
+ */
 void
 dvb_hotplug_udev_poll()
 {
@@ -273,5 +187,152 @@ dvb_hotplug_udev_poll()
       break;
     }
   }
+}
+
+/**
+ * Does the actual dvb device checking and creates hotplug events.
+ *
+ * On an add action:
+ *  - Mark only this subsystem ready.
+ *  - Sends one hotplug even when all the required subsystems are ready.
+ *  - Fails on a race condition if hotplug monitoring and device are connected at the same time
+ *
+ * On a remove action:
+ *  - Inform hotplug event handler as soon as possible.
+ *  - Causes event spam because of multiple subsystems.
+ */
+static void
+dvb_hotplug_udev_handle_device(struct udev_device *dev)
+{
+  const char *path, *action;
+  char adapterpath[STRING_BUFFER_SIZE], adapter[STRING_BUFFER_SIZE], adapter_subsystem[STRING_BUFFER_SIZE];
+
+  path = udev_device_get_devnode(dev);
+  action = udev_device_get_action(dev);
+
+  tvhlog(LOG_DEBUG, "udev", "dvb device event %s (%s)", path, action);
+
+  if (path)
+  {
+    regmatch_t matches[3];
+    if (regexec(&dvb_regex, path, 3, matches, 0) == 0)
+    {
+      if (matches[1].rm_so >= 0 && matches[2].rm_so >= 0)
+      {
+        str_substring(adapter, STRING_BUFFER_SIZE, path, matches[1].rm_so, matches[1].rm_eo);
+        str_substring(adapter_subsystem, STRING_BUFFER_SIZE, path, matches[2].rm_so, matches[2].rm_eo);
+
+        snprintf(adapterpath, STRING_BUFFER_SIZE, "%s/%s", dvb_path, adapter);
+
+        if (strcmp(device_action_remove, action) == 0)
+        {
+          dvb_hotplug_device_disconnect(adapterpath);
+        }
+        else if (strcmp(device_action_add, action) == 0)
+        {
+          if (dvb_hotplug_udev_is_adapter_ready(adapter, adapter_subsystem))
+            dvb_hotplug_device_connect(adapterpath);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Marks this subsystem ready and returns whether every required subsystem
+ * is ready or not.
+ *
+ * adapter: name of the connected adapter [eg. adapter1]
+ * adapter_subsystem: subsystem that generated the notification [eg. demux0]
+ *
+ * Returns 1 if all of the required subsystems of the adapter are connected.
+ * Returns 0 otherwise.
+ */
+static int
+dvb_hotplug_udev_is_adapter_ready(const char *adapter, const char *adapter_subsystem)
+{
+  // Check whether this subsystem is required or not.
+  int subsystem_index = get_required_subsystem_index(adapter_subsystem);
+  if (subsystem_index < 0)
+    return 0;
+
+  // Search subsystem list if this adapter exists.
+  struct dvb_subsystem_counter *adapter_counter = find_subsystem_counter_by_adapter(adapter);
+  if (!adapter_counter)
+  {
+    // Subsystem list didn't contain the adapter so create a new counter and add it to the list.
+    adapter_counter = create_subsystem_counter(adapter);
+    LIST_INSERT_HEAD(&subsystem_counter_head, adapter_counter, subsystem_link);
+  }
+
+  // Mark the subsystem ready.
+  adapter_counter->connected[subsystem_index] = 1;
+
+  // Check if every important subsystem is ready.
+  int i;
+  for (i = 0; i < SUBSYSTEM_COUNT; i++)
+  {
+    if (!adapter_counter->connected[i])
+      return 0;
+  }
+
+  // Adapter is ready. Remove it from the counter list.
+  LIST_REMOVE(adapter_counter, subsystem_link);
+  free(adapter_counter);
+
+  return 1;
+}
+
+static void
+str_substring(char *destination, int max_size, const char *source, int start, int end)
+{
+  snprintf(destination, max_size, "%.*s", end - start, source + start);
+}
+
+/**
+ * If the subsystem is required [eg. frontend3], returns it's subsystem index.
+ * Returns -1 otherwise.
+ */
+static int
+get_required_subsystem_index(const char *subsystem)
+{
+  regmatch_t match[1];
+
+  int i;
+  for (i = 0; i < SUBSYSTEM_COUNT; i++)
+  {
+    if (regexec(&dvb_required_subsystem_regex[i], subsystem, 1, match, 0) == 0)
+      return i;
+  }
+  return -1;
+}
+
+static struct dvb_subsystem_counter*
+create_subsystem_counter(const char *adapter)
+{
+  struct dvb_subsystem_counter *counter = calloc(1, sizeof(struct dvb_subsystem_counter));
+
+  strncpy(counter->adapter, adapter, STRING_BUFFER_SIZE - 1);
+  /*adapter_counter->adapter[STRING_BUFFER_SIZE - 1] = '\0';
+
+  int i;
+  for (i = 0; i < SUBSYSTEM_COUNT; i++)
+    adapter_counter->connected[i] = 0;
+  */
+  return counter;
+}
+
+static struct dvb_subsystem_counter*
+find_subsystem_counter_by_adapter(const char *adapter)
+{
+  struct dvb_subsystem_counter *counter;
+
+  LIST_FOREACH(counter, &subsystem_counter_head, subsystem_link)
+  {
+    if (strcmp(adapter, counter->adapter) == 0)
+      return counter;
+  }
+
+  return NULL;
 }
 
