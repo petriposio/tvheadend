@@ -19,6 +19,18 @@
 #ifndef DVR_FILENAMING_H
 #define DVR_FILENAMING_H
 
+#include "tvheadend.h"
+#include "dvr.h"
 
+typedef struct dvr_filename_scheme_advanced
+{
+  char *filename_regex;
+
+  int size;
+  char **source;
+  char **regex;
+} dvr_filename_scheme_advanced_t;
+
+int dvr_filenaming_get_filename(char *destination, size_t max_size, dvr_filename_scheme_advanced_t *scheme, dvr_entry_t *de);
 
 #endif
