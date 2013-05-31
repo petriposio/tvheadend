@@ -19,7 +19,7 @@
 #include <string.h>
 
 #include "dvr_filenaming.h"
-#include "redblack.h"
+#include "string_map.h"
 #include "pcre.h"
 
 #define STRING_SIZE 200
@@ -30,55 +30,40 @@
 #define TITLE_KEY       "title"
 #define DESCRIPTION_KEY "description"
 
-typedef struct key_value_container {
-  char key[STRING_SIZE];
-  char value[STRING_SIZE];
-
-  RB_ENTRY(key_value_container) rb_link;
-} key_value_container_t;
-
-typedef RB_HEAD(key_value_rb, key_value_container) key_value_rb_t;
-
-static int key_cmp(void *a, void *b)
-{
-  return strcmp(((key_value_container_t*)a)->key, ((key_value_container_t*)b)->key);
-}
-
 /**
  * Declarations
  */
-static void dvr_filenaming_create_common_variables(key_value_rb_t *variables, dvr_entry_t *de);
-static void dvr_filenaming_create_user_variables(key_value_rb_t *variables, dvr_filename_scheme_advanced_t *scheme);
+static void dvr_filenaming_create_common_variables(string_map *variables, dvr_entry_t *de);
+static void dvr_filenaming_create_user_variables(string_map *variables, dvr_filename_scheme_advanced_t *scheme);
 
-static void dvr_filenaming_set_value(key_value_rb_t *variables, const char *key, const char *value);
-static const char* dvr_filenaming_get_value(const key_value_rb_t *variables, const char *key);
-
-static void dvr_filenaming_capturing_regex(key_value_rb_t *variables, const char *source, const char *regex);
-static void dvr_filenaming_fprint(char *destination, size_t max_size, const char *source, const key_value_rb_t *variables);
+static void dvr_filenaming_capturing_regex(string_map *variables, const char *source, const char *regex);
+static void dvr_filenaming_fprint(char *destination, size_t max_size, const char *source, const string_map *variables);
 
 /**
  * Definitions
  */
 int dvr_filenaming_get_filename(char *destination, size_t max_size, dvr_filename_scheme_advanced_t *scheme, dvr_entry_t *de)
 {
-  key_value_rb_t variables;
-  RB_INIT(&variables);
+  string_map variables;
+  string_map_init(&variables);
 
   dvr_filenaming_create_common_variables(&variables, de);
   dvr_filenaming_create_user_variables(&variables, scheme);
 
   dvr_filenaming_fprint(destination, max_size, scheme->filename_regex, &variables);
+
+  string_map_destroy(&variables);
 }
 
-static void dvr_filenaming_create_common_variables(key_value_rb_t *variables, dvr_entry_t *de)
+static void dvr_filenaming_create_common_variables(string_map *variables, dvr_entry_t *de)
 {
-  dvr_filenaming_set_value(variables, CHANNEL_KEY, DVR_CH_NAME(de));
-  dvr_filenaming_set_value(variables, CREATOR_KEY, de->de_creator);
-  //dvr_filenaming_set_value(variables, TITLE_KEY, lang_str_get(de->de_title, NULL));
-  //dvr_filenaming_set_value(variables, DESCRIPTION_KEY, lang_str_get(de->de_desc, NULL));
+  string_map_set(variables, CHANNEL_KEY, DVR_CH_NAME(de));
+  string_map_set(variables, CREATOR_KEY, de->de_creator);
+  //string_map_set(variables, TITLE_KEY, lang_str_get(de->de_title, NULL));
+  //string_map_set(variables, DESCRIPTION_KEY, lang_str_get(de->de_desc, NULL));
 }
 
-static void dvr_filenaming_create_user_variables(key_value_rb_t *variables, dvr_filename_scheme_advanced_t *scheme)
+static void dvr_filenaming_create_user_variables(string_map *variables, dvr_filename_scheme_advanced_t *scheme)
 {
   char source[STRING_SIZE];
   int i;
@@ -92,7 +77,7 @@ static void dvr_filenaming_create_user_variables(key_value_rb_t *variables, dvr_
 /**
  * Capturing regex
  */
-static void dvr_filenaming_capturing_regex(key_value_rb_t *variables, const char *source, const char *regex)
+static void dvr_filenaming_capturing_regex(string_map *variables, const char *source, const char *regex)
 {
   const char *error;
   int error_offset;
@@ -127,7 +112,7 @@ static void dvr_filenaming_capturing_regex(key_value_rb_t *variables, const char
       pcre_nametable_get_item(nametable, name_entry_size, i, &name, &substring_index);
       pcre_get_substring(source, matches, MAX_REGEX_MATCHES, substring_index, &value);
 
-      dvr_filenaming_set_value(variables, name, value);
+      string_map_set(variables, name, value);
 
       pcre_free_substring(value);
     }
@@ -139,7 +124,7 @@ static void dvr_filenaming_capturing_regex(key_value_rb_t *variables, const char
 /**
  * Formatted printing with variables from captured regexes
  */
-static void dvr_filenaming_fprint(char *destination, size_t max_size, const char *source, const key_value_rb_t *variables)
+static void dvr_filenaming_fprint(char *destination, size_t max_size, const char *source, const string_map *variables)
 {
   char temp_key[STRING_SIZE];
 
@@ -185,7 +170,7 @@ static void dvr_filenaming_fprint(char *destination, size_t max_size, const char
     temp_key[copy_size] = '\0';
     source += next_special;
 
-    const char *value = dvr_filenaming_get_value(variables, temp_key);
+    const char *value = string_map_get(variables, temp_key);
     if (value)
     {
       copy_size = strlen(value);
@@ -206,38 +191,10 @@ static void dvr_filenaming_fprint(char *destination, size_t max_size, const char
   }
 }
 
-/**
- * Key-value redblack tree helper functions
- */
-// TODO: better way than this? create new, check if it collides and free new item and modify the colliding old element
-static void dvr_filenaming_set_value(key_value_rb_t *variables, const char *key, const char *value)
-{
-  key_value_container_t *item = calloc(1, sizeof(key_value_container_t));
-  strncpy(item->key, key, STRING_SIZE - 1);
-  strncpy(item->value, value, STRING_SIZE - 1);
-
-  key_value_container_t *old = RB_INSERT_SORTED(variables, item, rb_link, key_cmp);
-  if(old)
-  {
-    free(item);
-    strncpy(old->value, value, STRING_SIZE - 1);
-  }
-}
-
-static const char* dvr_filenaming_get_value(const key_value_rb_t *variables, const char *key)
-{
-  key_value_container_t i;
-  strncpy(i.key, key, STRING_SIZE - 1);
-  i.key[STRING_SIZE - 1] = '\0';
-
-  key_value_container_t *item = RB_FIND(variables, &i, rb_link, key_cmp);
-  return item ? item->value : NULL;
-}
-
 int main(int argc, char **argv)
 {
-  key_value_rb_t variables;
-  RB_INIT(&variables);
+  string_map variables;
+  string_map_init(&variables);
 
   char temp[STRING_SIZE];
 
@@ -248,8 +205,9 @@ int main(int argc, char **argv)
   dvr_filenaming_capturing_regex(&variables, temp, "^[ -]*(?<name>.*?)[ ]*$");
 
   dvr_filenaming_fprint(temp, STRING_SIZE, "nimi: %season% %episode% %name% %classification%", &variables);
-
   printf("%s\n", temp);
+
+  string_map_destroy(&variables);
 
   return 0;
 }

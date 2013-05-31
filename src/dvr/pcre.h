@@ -16,6 +16,10 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+
+#ifndef PCRE_H_
+#define PCRE_H_
+
 #include <pcre.h>
 
 // PCRE internal character definition
@@ -53,3 +57,5 @@ static void pcre_nametable_get_item(uschar *nametable, int name_entry_size, int 
   *name = (char *)(entry + 2);
   *substring_index = (entry[0] << 8) + entry[1];
 }
+
+#endif
