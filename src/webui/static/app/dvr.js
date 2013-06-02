@@ -750,16 +750,17 @@ tvheadend.dvrsettings = function() {
 		disabled : true
 	});
 
-	var confpanel = new Ext.FormPanel({
-		title : 'Digital Video Recorder',
-		iconCls : 'drive',
-		border : false,
+	/*
+	 * General panel
+	 */
+	var confpanel = new Ext.Panel({
+		title : 'General recording settings',
+		border : true,
+		style : 'margin:10px',
 		bodyStyle : 'padding:15px',
 		anchor : '100% 50%',
 		labelAlign : 'right',
 		labelWidth : 250,
-		waitMsgTarget : true,
-		reader : confreader,
 		defaultType : 'textfield',
 		layout : 'form',
 		items : [ {
@@ -790,6 +791,51 @@ tvheadend.dvrsettings = function() {
 			fieldLabel : 'Extra time after recordings (minutes)',
 			name : 'postExtraTime'
 		}), new Ext.form.Checkbox({
+			fieldLabel : 'Remove all unsafe characters from filename',
+			name : 'cleanTitle'
+		}), new Ext.form.Checkbox({
+			fieldLabel : 'Replace whitespace in title with \'-\'',
+			name : 'whitespaceInTitle'
+		}), new Ext.form.Checkbox({
+			fieldLabel : 'Tag files with metadata',
+			name : 'tagFiles'
+		}), new Ext.form.Checkbox({
+			fieldLabel : 'Skip commercials',
+			name : 'commSkip'
+		}), {
+			width : 300,
+			fieldLabel : 'Post-processor command',
+			name : 'postproc'
+		} ]
+	});
+
+	var filenameModeButton = new Ext.CycleButton({
+		prependText: 'Mode: ',
+		showText: true,
+		changeHandler: function(cycleButton, item) { filenamingpanel.layout.setActiveItem(item.itemId); },
+		items: [{
+			text: 'Basic',
+			itemId: 'filenaming_basic'
+		}, {
+			text: 'Advanced',
+			itemId: 'filenaming_advanced'
+		} ]
+	})
+
+	/*
+	 * Basic filenaming panel
+	 */
+	var filenaming_basic = new Ext.form.FieldSet({
+		id: 'filenaming_basic',
+		width: '100%',
+		height: '100%',
+		labelAlign : 'right',
+		labelWidth : 200,
+		border: false,
+		bodyStyle : 'padding:15px',
+		layout : 'form',
+		items : [
+		new Ext.form.Checkbox({
 			fieldLabel : 'Make subdirectories per day',
 			name : 'dayDirs'
 		}), new Ext.form.Checkbox({
@@ -810,23 +856,118 @@ tvheadend.dvrsettings = function() {
 		}), new Ext.form.Checkbox({
 			fieldLabel : 'Include episode in filename',
 			name : 'episodeInTitle'
-		}), new Ext.form.Checkbox({
-			fieldLabel : 'Remove all unsafe characters from filename',
-			name : 'cleanTitle'
-		}), new Ext.form.Checkbox({
-			fieldLabel : 'Replace whitespace in title with \'-\'',
-			name : 'whitespaceInTitle'
-		}), new Ext.form.Checkbox({
-			fieldLabel : 'Tag files with metadata',
-			name : 'tagFiles'
-		}), new Ext.form.Checkbox({
-			fieldLabel : 'Skip commercials',
-			name : 'commSkip'
-		}), {
-			width : 300,
-			fieldLabel : 'Post-processor command',
-			name : 'postproc'
-		} ],
+		}) ]
+	});
+
+	var testData = [
+		[ 'asd', 'argh' ],
+		[ 'asd', 'argh' ],
+		[ 'asd', 'argh' ]
+	];
+	/*
+	 * Advanced filenaming panel
+	 */
+	var filenaming_advanced = new Ext.Panel({
+		id: 'filenaming_advanced',
+		width: '100%',
+		border: false,
+		waitMsgTarget : true,
+		layout: {
+			type: 'vbox',
+			align: 'stretch',
+			pack: 'start'
+		},
+		layoutConfig: {
+			flex: 1,
+			align: 'stretch',
+			pack: 'start'
+		},
+		items : [
+		new Ext.grid.GridPanel({
+			flex: 1,
+			width: '100%',
+			enableHdMenu: false,
+			border: false,
+			store: new Ext.data.ArrayStore({
+				data: testData,
+				autoDestroy: true,
+				fields: [
+					{ name: 'source', type : 'string' },
+					{ name: 'regex', type : 'string' }
+				]
+			}),
+			colModel: new Ext.grid.ColumnModel({
+				defaultSortable: false,
+				isCellEditable: function() { return true },
+				columns: [
+					{ header: 'Source', dataIndex: 'source', width: 150 },
+					{ header: 'Parsing regex', dataIndex: 'regex', width: 330 }
+				]
+			}),
+		}), new Ext.form.FieldSet({
+			width: '100%',
+			border: false,
+			labelAlign : 'right',
+			labelWidth : 70,
+			items: [ new Ext.form.TextField({
+				name : 'advancedFilename',
+				fieldLabel : 'Filename',
+				width: '98%'
+			}) ]
+		}) ]
+	});
+
+	/*function moveSelectedRow(grid, direction) {
+		var record = grid.getSelectionModel().getSelected();
+		if (!record) {
+			return;
+		}
+		var index = grid.getStore().indexOf(record);
+		if (direction < 0) {
+			index--;
+			if (index < 0) {
+				return;
+			}
+		} else {
+			index++;
+			if (index >= grid.getStore().getCount()) {
+				return;
+			}
+		}
+		grid.getStore().remove(record);
+		grid.getStore().insert(index, record);
+		grid.getSelectionModel().selectRow(index, true);
+	}*/
+
+	/*
+	 * Filename panel
+	 */
+	var filenamingpanel = new Ext.Panel({
+		title : 'Filename settings',
+		border : true,
+		style : 'margin:10px',
+		anchor : '100% 50%',
+		width: 500,
+		height: 300,
+		layout: 'card',
+		activeItem: 'filenaming_basic',
+		waitMsgTarget : true,
+		items : [ filenaming_basic, filenaming_advanced ],
+		tbar: [ filenameModeButton ]
+	});
+
+	/**
+	 * Main panel
+	 */
+	var panel = new Ext.form.FormPanel({
+		title : 'Digital Video Recorder',
+		iconCls : 'drive',
+		layout : 'column',
+		autoScroll : true,
+		autoHeight: true,
+		waitMsgTarget : true,
+		reader : confreader,
+		items : [ confpanel, filenamingpanel ],
 		tbar : [ confcombo, {
 			tooltip : 'Save changes made to dvr configuration below',
 			iconCls : 'save',
@@ -840,19 +981,6 @@ tvheadend.dvrsettings = function() {
 		} ]
 	});
 
-	function loadConfig() {
-		confpanel.getForm().load({
-			url : 'dvr',
-			params : {
-				'op' : 'loadSettings',
-				'config_name' : confcombo.getValue()
-			},
-			success : function(form, action) {
-				confpanel.enable();
-			}
-		});
-	}
-
 	confcombo.on('select', function() {
 		if (confcombo.getValue() == '') delButton.disable();
 		else delButton.enable();
@@ -863,13 +991,31 @@ tvheadend.dvrsettings = function() {
 		loadConfig();
 	});
 
+	function loadConfig() {
+		var test = panel.getForm().getValues();
+		panel.getForm().load({
+			url : 'dvr',
+			params : {
+				'op' : 'loadSettings',
+				'config_name' : confcombo.getValue()
+			},
+			success : function(form, action) {
+				var filename_mode = action.result.data.filename_mode;
+				filenameModeButton.setActiveItem(filename_mode);
+				confpanel.enable();
+			}
+		});
+	}
+
 	function saveChanges() {
 		var config_name = confcombo.getValue();
-		confpanel.getForm().submit({
+		var filename_mode = filenameModeButton.getActiveItem().getItemId();
+		panel.getForm().submit({
 			url : 'dvr',
 			params : {
 				'op' : 'saveSettings',
-				'config_name' : config_name
+				'config_name' : config_name,
+				'filename_mode' : filename_mode
 			},
 			waitMsg : 'Saving Data...',
 			success : function(form, action) {
@@ -910,5 +1056,5 @@ tvheadend.dvrsettings = function() {
 		}
 	}
 
-	return confpanel;
+	return panel;
 }
