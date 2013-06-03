@@ -29,6 +29,7 @@ OPTIONS=(
   "inotify:auto"
   "bundle:no"
   "dvbcsa:no"
+  "advancedfilenames:auto"
 )
 
 #
@@ -191,6 +192,17 @@ if enabled linuxdvb && enabled dvbscan; then
     die "Failed to fetch dvb-scan data (use --disable-dvbscan)"
   fi
   echo "ok"
+fi
+
+#
+# Advanced filenames
+#
+if enabled_or_auto advancedfilenames; then
+  if check_pkg libpcre; then
+    enable advancedfilenames
+  elif enabled advancedfilenames; then
+    die "Libpcre support not found (use --disable-advancedfilenames)"
+  fi  
 fi
 
 # ###########################################################################

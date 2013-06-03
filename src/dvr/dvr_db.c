@@ -1051,8 +1051,8 @@ dvr_destroy_by_channel(channel_t *ch)
 void
 dvr_init(void)
 {
-  htsmsg_t *m, *l;
-  htsmsg_field_t *f;
+  htsmsg_t *m, *l, *t, *u;
+  htsmsg_field_t *f, *g;
   const char *s;
   char buf[500];
   const char *homedir;
@@ -1122,6 +1122,30 @@ dvr_init(void)
         cfg->dvr_flags &= ~DVR_SKIP_COMMERCIALS;
 
       tvh_str_set(&cfg->dvr_postproc, htsmsg_get_str(m, "postproc"));
+
+#if ENABLE_ADVANCEDFILENAMES
+      if(!htsmsg_get_u32(m, "filename_mode", &u32))
+        dvr_filenaming_set_mode(cfg, u32);
+      if((s = htsmsg_get_str(m, "filename_advanced_filename")) != NULL)
+        dvr_filenaming_advanced_set_filename_format(&cfg->dvr_filenaming_advanced, s);
+
+      if (t = htsmsg_get_list(m, "filename_advanced_regex") != NULL)
+      {
+        int regex_counter = 0;
+        TAILQ_FOREACH(g, &t->hm_fields, hmf_link)
+        {
+          if((u = htsmsg_get_map_by_field(g)) == NULL)
+            continue;
+
+          char *source, *regex;
+          source = htsmsg_get_str(u, "source");
+          regex = htsmsg_get_str(u, "regex");
+          dvr_filenaming_advanced_set_regex(&cfg->dvr_filenaming_advanced, regex_counter, source, regex);
+
+          regex_counter++;
+        }
+      }
+#endif
     }
 
     htsmsg_destroy(l);
@@ -1232,6 +1256,12 @@ dvr_config_create(const char *name)
   /* dup detect */
   cfg->dvr_dup_detect_episode = 1; // detect dup episodes
 
+#if ENABLE_ADVANCEDFILENAMES
+  cfg->dvr_filename_mode = DVR_FILENAMEMODE_BASIC;
+
+  dvr_filenaming_advanced_init(&cfg->dvr_filenaming_advanced);
+#endif
+
   LIST_INSERT_HEAD(&dvrconfigs, cfg, config_link);
 
   return LIST_FIRST(&dvrconfigs);
@@ -1287,6 +1317,22 @@ dvr_save(dvr_config_t *cfg)
   htsmsg_add_u32(m, "skip-commercials", !!(cfg->dvr_flags & DVR_SKIP_COMMERCIALS));
   if(cfg->dvr_postproc != NULL)
     htsmsg_add_str(m, "postproc", cfg->dvr_postproc);
+
+#if ENABLE_ADVANCEDFILENAMES
+  htsmsg_add_u32(m, "filename_mode", cfg->dvr_filename_mode);
+  htsmsg_add_str(m, "filename_advanced_filename", cfg->dvr_filenaming_advanced->filename_format);
+
+  htsmsg_t *temp, *regexes = htsmsg_create_list();
+  struct dvr_filename_scheme_advanced_list *i;
+  LIST_FOREACH (i, cfg->dvr_filenaming_advanced->regex_list, _link)
+  {
+    temp = htsmsg_create_map();
+    htsmsg_add_str(temp, "source", i->source);
+    htsmsg_add_str(temp, "regex", i->regex);
+    htsmsg_add_msg(regexes, NULL, temp);
+  }
+  htsmsg_add_msg(m, "filename_advanced_regex", regexes);
+#endif
 
   hts_settings_save(m, "dvr/config%s", cfg->dvr_config_name);
   htsmsg_destroy(m);

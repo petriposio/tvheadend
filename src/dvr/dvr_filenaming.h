@@ -20,17 +20,27 @@
 #define DVR_FILENAMING_H
 
 #include "tvheadend.h"
-#include "dvr.h"
+
+struct dvr_filename_scheme_advanced_list
+{
+  char *source;
+  char *regex;
+  LIST_ENTRY(dvr_filename_scheme_advanced_list) _link;
+};
 
 typedef struct dvr_filename_scheme_advanced
 {
-  char *filename_regex;
-
-  int size;
-  char **source;
-  char **regex;
+  char *filename_format;
+  LIST_HEAD(, dvr_filename_scheme_advanced_list) regex_list;
 } dvr_filename_scheme_advanced_t;
 
-int dvr_filenaming_get_filename(char *destination, size_t max_size, dvr_filename_scheme_advanced_t *scheme, dvr_entry_t *de);
+int dvr_filenaming_get_filename(char *destination, size_t max_size, dvr_filename_scheme_advanced_t *scheme, struct dvr_entry *de);
+
+void dvr_filenaming_advanced_init(dvr_filename_scheme_advanced_t *scheme);
+void dvr_filenaming_advanced_destroy(dvr_filename_scheme_advanced_t *scheme);
+
+int dvr_filenaming_set_mode(struct dvr_config *cfg, int mode);
+int dvr_filenaming_advanced_set_filename_format(dvr_filename_scheme_advanced_t *scheme, const char *format);
+int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, int index, const char *source, const char *regex);
 
 #endif

@@ -20,11 +20,16 @@
 #define DVR_H
 
 #include <regex.h>
+#include "config.h"
 #include "epg.h"
 #include "channels.h"
 #include "subscriptions.h"
 #include "muxer.h"
 #include "lang_str.h"
+#include "dvr_filenaming.h"
+
+#define DVR_FILENAMEMODE_BASIC 1
+#define DVR_FILENAMEMODE_ADVANCED 2
 
 typedef struct dvr_config {
   char *dvr_config_name;
@@ -47,6 +52,13 @@ typedef struct dvr_config {
 
   /* Duplicate detect */
   int dvr_dup_detect_episode;
+
+#if ENABLE_ADVANCEDFILENAMES
+  int dvr_filename_mode;
+
+  /* Advanced filenaming */
+  dvr_filename_scheme_advanced_t dvr_filenaming_advanced;
+#endif
 
   LIST_ENTRY(dvr_config) config_link;
 } dvr_config_t;

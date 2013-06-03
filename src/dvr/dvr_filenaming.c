@@ -19,7 +19,9 @@
 #include <string.h>
 
 #include "dvr_filenaming.h"
+#include "dvr.h"
 #include "string_map.h"
+#include "queue.h"
 #include "pcre.h"
 
 #define STRING_SIZE 200
@@ -42,6 +44,109 @@ static void dvr_filenaming_fprint(char *destination, size_t max_size, const char
 /**
  * Definitions
  */
+int dvr_filenaming_set_mode(dvr_config_t *cfg, int mode)
+{
+  if (cfg->dvr_filename_mode == mode)
+    return 0;
+
+  cfg->dvr_filename_mode = mode;
+  return 1;
+}
+
+static int change_str(char **target, const char *new)
+{
+  if (*target == new || (*target && new && strcmp(*target, new) == 0))
+    return 0;
+
+  if (new)
+  {
+    free (*target);
+    *target = NULL;
+  }
+  else
+  {
+    int old_length = *target ? strlen(*target) : 0;
+    int new_length = new ? strlen(new) : 0;
+
+    if (new_length == 0)
+    {
+      if (*target)
+        free (*target);
+      *target = NULL;
+    }
+    else
+    {
+      if (old_length < new_length)
+      {
+        if (*target)
+          free (*target);
+        *target = calloc(1, new_length * sizeof (char));
+      }
+      strcpy(*target, new);
+    }
+  }
+
+  return 1;
+}
+
+int dvr_filenaming_advanced_set_filename_format(dvr_filename_scheme_advanced_t *scheme, const char *format)
+{
+  return change_str(&scheme->filename_format, format);
+}
+
+int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, int index, const char *source, const char *regex)
+{
+  index++;
+  struct dvr_filename_scheme_advanced_list *i;
+  LIST_FOREACH (i, &scheme->regex_list, _link)
+  {
+    index--;
+    if (index == 0)
+      break;
+  }
+
+  if (index != 0)
+  {
+    struct dvr_filename_scheme_advanced_list *temp = calloc(1, sizeof(struct dvr_filename_scheme_advanced_list));
+    if (i)
+      LIST_INSERT_AFTER(i, temp, _link)
+    else
+      LIST_INSERT_HEAD(scheme->regex_list, temp, _link);
+
+    i = temp;
+  }
+
+  int changed = 0;
+  if (change_str(&i->source, source))
+    changed = 1;
+  if (change_str(&i->regex, regex))
+    changed = 1;
+
+  return changed;
+}
+
+void dvr_filenaming_advanced_init(dvr_filename_scheme_advanced_t *scheme)
+{
+  scheme->filename_format = NULL;
+  LIST_INIT(&scheme->regex_list);
+}
+
+void dvr_filenaming_advanced_destroy(dvr_filename_scheme_advanced_t *scheme)
+{
+  struct dvr_filename_scheme_advanced_list *i;
+  while (!LIST_EMPTY(&scheme->regex_list))
+  {
+    i = LIST_FIRST(&scheme->regex_list);
+    LIST_REMOVE(i, _link);
+
+    if (i->source)
+      free(i->source);
+    if (i->regex)
+      free(i->regex);
+    free(i);
+  }
+}
+
 int dvr_filenaming_get_filename(char *destination, size_t max_size, dvr_filename_scheme_advanced_t *scheme, dvr_entry_t *de)
 {
   string_map variables;

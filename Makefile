@@ -194,7 +194,12 @@ SRCS-$(CONFIG_LIBAV) += src/libav.c \
 
 # CWC
 SRCS-${CONFIG_CWC} += src/cwc.c \
-	src/capmt.c
+	src/capmt.c \
+
+# ADVANCED FILENAMES
+SRCS-${CONFIG_ADVANCEDFILENAMES} += \
+	src/dvr/dvr_filenaming.c \
+        src/dvr/string_map.c
 
 # FFdecsa
 ifneq ($(CONFIG_DVBCSA),yes)

@@ -864,6 +864,31 @@ tvheadend.dvrsettings = function() {
 		[ 'asd', 'argh' ],
 		[ 'asd', 'argh' ]
 	];
+
+	var filenaming_advanced_grid = new Ext.grid.EditorGridPanel({
+			flex: 1,
+			autoHeight: true,
+			enableHdMenu: false,
+			border: false,
+			viewConfig: { forceFit: true },
+			selModel: new Ext.grid.RowSelectionModel({ singleSelect : false }),
+			store: new Ext.data.ArrayStore({
+				data: testData,
+				autoDestroy: true,
+				fields: [
+					{ name: 'source', type: 'string' },
+					{ name: 'regex', type: 'string' }
+				]
+			}),
+			colModel: new Ext.grid.ColumnModel({
+				defaultSortable: false,
+				columns: [
+					{ header: 'Source', dataIndex: 'source', width: 1 },
+					{ header: 'Parsing regex', dataIndex: 'regex', width: 2 }
+				]
+			})
+	});
+
 	/*
 	 * Advanced filenaming panel
 	 */
@@ -883,34 +908,14 @@ tvheadend.dvrsettings = function() {
 			pack: 'start'
 		},
 		items : [
-		new Ext.grid.GridPanel({
-			flex: 1,
-			width: '100%',
-			enableHdMenu: false,
-			border: false,
-			store: new Ext.data.ArrayStore({
-				data: testData,
-				autoDestroy: true,
-				fields: [
-					{ name: 'source', type : 'string' },
-					{ name: 'regex', type : 'string' }
-				]
-			}),
-			colModel: new Ext.grid.ColumnModel({
-				defaultSortable: false,
-				isCellEditable: function() { return true },
-				columns: [
-					{ header: 'Source', dataIndex: 'source', width: 150 },
-					{ header: 'Parsing regex', dataIndex: 'regex', width: 330 }
-				]
-			}),
-		}), new Ext.form.FieldSet({
+		filenaming_advanced_grid,
+		new Ext.form.FieldSet({
 			width: '100%',
 			border: false,
 			labelAlign : 'right',
 			labelWidth : 70,
 			items: [ new Ext.form.TextField({
-				name : 'advancedFilename',
+				name : 'filename_advanced_filename',
 				fieldLabel : 'Filename',
 				width: '98%'
 			}) ]
@@ -1010,12 +1015,15 @@ tvheadend.dvrsettings = function() {
 	function saveChanges() {
 		var config_name = confcombo.getValue();
 		var filename_mode = filenameModeButton.getActiveItem().getItemId();
+		var filename_advanced_regex = Ext.pluck(filenaming_advanced_grid.getStore().getRange(), 'data');
+
 		panel.getForm().submit({
 			url : 'dvr',
 			params : {
 				'op' : 'saveSettings',
 				'config_name' : config_name,
-				'filename_mode' : filename_mode
+				'filename_mode' : filename_mode,
+				'filename_advanced_regex' : Ext.encode(filename_advanced_regex)
 			},
 			waitMsg : 'Saving Data...',
 			success : function(form, action) {
