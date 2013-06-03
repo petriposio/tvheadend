@@ -42,5 +42,6 @@ void dvr_filenaming_advanced_destroy(dvr_filename_scheme_advanced_t *scheme);
 int dvr_filenaming_set_mode(struct dvr_config *cfg, int mode);
 int dvr_filenaming_advanced_set_filename_format(dvr_filename_scheme_advanced_t *scheme, const char *format);
 int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, int index, const char *source, const char *regex);
+int dvr_filenaming_advanced_set_regex_size(dvr_filename_scheme_advanced_t *scheme, int size);
 
 #endif

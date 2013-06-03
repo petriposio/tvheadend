@@ -810,10 +810,24 @@ tvheadend.dvrsettings = function() {
 		} ]
 	});
 
-	var filenameModeButton = new Ext.CycleButton({
+	var filename_mode_button = new Ext.CycleButton({
 		prependText: 'Mode: ',
 		showText: true,
-		changeHandler: function(cycleButton, item) { filenamingpanel.layout.setActiveItem(item.itemId); },
+		autoDestroy: false,
+		changeHandler: function(cycleButton, item) {
+			filenamingpanel.getLayout().setActiveItem(item.itemId);
+
+			var i;
+			while(i = filename_toolbar.items.first())
+				filename_toolbar.remove(i, false);
+			filename_toolbar.update('');
+
+			var tools = filenamingpanel.getLayout().activeItem.filename_toolbar;
+			if (tools)
+				filename_toolbar.add(tools);
+
+			filename_toolbar.doLayout();
+		},
 		items: [{
 			text: 'Basic',
 			itemId: '1'
@@ -821,7 +835,11 @@ tvheadend.dvrsettings = function() {
 			text: 'Advanced',
 			itemId: '2'
 		} ]
-	})
+	});
+
+	var filename_toolbar = new Ext.Panel({
+		border: false
+	});
 
 	/*
 	 * Basic filenaming panel
@@ -860,45 +878,40 @@ tvheadend.dvrsettings = function() {
 		}) ]
 	});
 
-	var testData = {
-		filename_advanced_regex: [
-			{source: 'asd', regex: 'argh'}
-		]
-	};
-
 	var filenaming_advanced_grid = new Ext.grid.EditorGridPanel({
-			flex: 1,
-			autoHeight: true,
-			enableHdMenu: false,
-			border: false,
-			viewConfig: { forceFit: true },
-			clicksToEdit: 1,
-			defaultType : 'textfield',
-			selModel: new Ext.grid.RowSelectionModel({ singleSelect : false }),
-			colModel: new Ext.grid.ColumnModel({
-				defaultSortable: false,
-				columns: [
-					{
-						header: 'Source',
-						dataIndex: 'source',
-						width: 1,
-						editor: new Ext.form.TextField()
-					},
-					{
-						header: 'Parsing regex',
-						dataIndex: 'regex',
-						width: 2,
-						editor: new Ext.form.TextField()
-					}
-				]
-			}),
-			store: new Ext.data.JsonStore({
-				root: 'filename_advanced_regex',
-				fields: [
-					{ name: 'source', type: 'string' },
-					{ name: 'regex', type: 'string' }
-				]
-			})
+		flex: 1,
+		autoHeight: true,
+		enableHdMenu: false,
+		border: false,
+		autoLoad: false,
+		viewConfig: { forceFit: true },
+		clicksToEdit: 2,
+		defaultType : 'textfield',
+		selModel: new Ext.grid.RowSelectionModel({ singleSelect : false }),
+		colModel: new Ext.grid.ColumnModel({
+			defaultSortable: false,
+			columns: [
+				{
+					header: 'Source',
+					dataIndex: 'source',
+					width: 1,
+					editor: new Ext.form.TextField()
+				},
+				{
+					header: 'Parsing regex',
+					dataIndex: 'regex',
+					width: 2,
+					editor: new Ext.form.TextField()
+				}
+			]
+		}),
+		store: new Ext.data.JsonStore({
+			root: 'filename_advanced_regex',
+			fields: [
+				{ name: 'source', type: 'string' },
+				{ name: 'regex', type: 'string' }
+			]
+		})
 	});
 
 	/*
@@ -914,13 +927,8 @@ tvheadend.dvrsettings = function() {
 			align: 'stretch',
 			pack: 'start'
 		},
-		layoutConfig: {
-			flex: 1,
-			align: 'stretch',
-			pack: 'start'
-		},
-		items : [
-		filenaming_advanced_grid,
+		items: [
+			filenaming_advanced_grid,
 		new Ext.form.FieldSet({
 			width: '100%',
 			border: false,
@@ -931,7 +939,27 @@ tvheadend.dvrsettings = function() {
 				fieldLabel : 'Filename',
 				width: '98%'
 			}) ]
-		}) ]
+		}) ],
+		filename_toolbar: [
+			new Ext.Button({
+				iconCls: 'add',
+				handler: function() {
+					filenaming_advanced_grid.stopEditing();
+					var store = filenaming_advanced_grid.getStore();
+					var r = new store.recordType({ source: '', regex: '' });
+					store.add(r);
+					filenaming_advanced_grid.getSelectionModel().selectLastRow();
+				}
+			}),
+			new Ext.Button({
+				iconCls: 'remove',
+				handler: function() {
+					filenaming_advanced_grid.stopEditing();
+					var sel = filenaming_advanced_grid.getSelectionModel().getSelections();
+					filenaming_advanced_grid.getStore().remove(sel);
+				}
+			})
+		]
 	});
 
 	/*function moveSelectedRow(grid, direction) {
@@ -970,7 +998,7 @@ tvheadend.dvrsettings = function() {
 		activeItem: '1',
 		waitMsgTarget : true,
 		items : [ filenaming_basic, filenaming_advanced ],
-		tbar: [ filenameModeButton ]
+		tbar: [ filename_mode_button, '->', filename_toolbar ]
 	});
 
 	/**
@@ -1022,7 +1050,7 @@ tvheadend.dvrsettings = function() {
 				if (filename_advanced_regex)
 					filenaming_advanced_grid.getStore().loadData(filename_advanced_regex);
 				if (filename_mode)
-					filenameModeButton.setActiveItem(filename_mode);
+					filename_mode_button.setActiveItem(filename_mode);
 				confpanel.enable();
 			}
 		});
@@ -1030,7 +1058,7 @@ tvheadend.dvrsettings = function() {
 
 	function saveChanges() {
 		var config_name = confcombo.getValue();
-		var filename_mode = filenameModeButton.getActiveItem().getItemId();
+		var filename_mode = filename_mode_button.getActiveItem().getItemId();
 		var filename_advanced_regex = Ext.pluck(filenaming_advanced_grid.getStore().getRange(), 'data');
 
 		panel.getForm().submit({
@@ -1062,7 +1090,7 @@ tvheadend.dvrsettings = function() {
 
 	function deleteAction(btn) {
 		if (btn == 'yes') {
-			confpanel.getForm().submit({
+			panel.getForm().submit({
 				url : 'dvr',
 				params : {
 					'op' : 'deleteSettings',

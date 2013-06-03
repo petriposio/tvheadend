@@ -41,9 +41,20 @@ static void dvr_filenaming_create_user_variables(string_map *variables, dvr_file
 static void dvr_filenaming_capturing_regex(string_map *variables, const char *source, const char *regex);
 static void dvr_filenaming_fprint(char *destination, size_t max_size, const char *source, const string_map *variables);
 
+static void dvr_filenaming_destroy_regex(struct dvr_filename_scheme_advanced_list *regex);
+
 /**
  * Definitions
  */
+static void dvr_filenaming_destroy_regex(struct dvr_filename_scheme_advanced_list *regex)
+{
+  if (regex->source)
+    free(regex->source);
+  if (regex->regex)
+    free(regex->regex);
+  free(regex);
+}
+
 int dvr_filenaming_set_mode(dvr_config_t *cfg, int mode)
 {
   if (cfg->dvr_filename_mode == mode)
@@ -73,9 +84,10 @@ int dvr_filenaming_advanced_set_filename_format(dvr_filename_scheme_advanced_t *
 int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, int index, const char *source, const char *regex)
 {
   index++;
-  struct dvr_filename_scheme_advanced_list *i;
+  struct dvr_filename_scheme_advanced_list *i, *last = NULL;
   LIST_FOREACH (i, &scheme->regex_list, _link)
   {
+    last = i;
     index--;
     if (index == 0)
       break;
@@ -84,8 +96,8 @@ int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, in
   if (index != 0)
   {
     struct dvr_filename_scheme_advanced_list *temp = calloc(1, sizeof(struct dvr_filename_scheme_advanced_list));
-    if (i)
-      LIST_INSERT_AFTER(i, temp, _link);
+    if (last)
+      LIST_INSERT_AFTER(last, temp, _link);
     else
       LIST_INSERT_HEAD(&scheme->regex_list, temp, _link);
 
@@ -101,6 +113,32 @@ int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, in
   return changed;
 }
 
+int dvr_filenaming_advanced_set_regex_size(dvr_filename_scheme_advanced_t *scheme, int size)
+{
+  struct dvr_filename_scheme_advanced_list *i, *last = NULL;
+  LIST_FOREACH (i, &scheme->regex_list, _link)
+  {
+    if (size > 0)
+      size--;
+    else
+    {
+      if (last)
+      {
+        LIST_REMOVE(last, _link);
+        dvr_filenaming_destroy_regex(last);
+      }
+      last = i;
+    }
+  }
+  if (last)
+  {
+    LIST_REMOVE(last, _link);
+    dvr_filenaming_destroy_regex(last);
+  }
+
+  return last != NULL;
+}
+
 void dvr_filenaming_advanced_init(dvr_filename_scheme_advanced_t *scheme)
 {
   scheme->filename_format = NULL;
@@ -114,12 +152,7 @@ void dvr_filenaming_advanced_destroy(dvr_filename_scheme_advanced_t *scheme)
   {
     i = LIST_FIRST(&scheme->regex_list);
     LIST_REMOVE(i, _link);
-
-    if (i->source)
-      free(i->source);
-    if (i->regex)
-      free(i->regex);
-    free(i);
+    dvr_filenaming_destroy_regex(i);
   }
 }
 
