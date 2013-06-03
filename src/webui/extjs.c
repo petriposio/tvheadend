@@ -1267,12 +1267,12 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
     htsmsg_add_u32(r, "commSkip", !!(cfg->dvr_flags & DVR_SKIP_COMMERCIALS));
 
 #if ENABLE_ADVANCEDFILENAMES
-    htsmsg_add_str(r, "filename_mode", cfg->dvr_filename_mode);
-    htsmsg_add_str(r, "filename_advanced_filename", cfg->dvr_filenaming_advanced->filename_format);
+    htsmsg_add_u32(r, "filename_mode", cfg->dvr_filename_mode);
+    htsmsg_add_str(r, "filename_advanced_filename", cfg->dvr_filenaming_advanced.filename_format);
 
     htsmsg_t *temp, *regexes = htsmsg_create_list();
     struct dvr_filename_scheme_advanced_list *i;
-    LIST_FOREACH (i, cfg->dvr_filenaming_advanced->regex_list, _link)
+    LIST_FOREACH (i, &cfg->dvr_filenaming_advanced.regex_list, _link)
     {
       temp = htsmsg_create_map();
       htsmsg_add_str(temp, "source", i->source);
@@ -1345,21 +1345,20 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
       if (dvr_filenaming_advanced_set_filename_format(&cfg->dvr_filenaming_advanced, s))
         changed = 1;
 
-    if (s = http_arg_get(&hc->hc_req_args, "filename_advanced_regex") != NULL)
+    if ((s = http_arg_get(&hc->hc_req_args, "filename_advanced_regex")) != NULL)
     {
       r = htsmsg_json_deserialize(s);
 
       htsmsg_t *c;
       htsmsg_field_t *f;
       int regex_counter = 0;
-      TAILQ_FOREACH(f, &msg->hm_fields, hmf_link)
+      TAILQ_FOREACH(f, &r->hm_fields, hmf_link)
       {
         if((c = htsmsg_get_map_by_field(f)) == NULL)
           continue;
 
-        char *source, *regex;
-        source = htsmsg_get_str(c, "source");
-        regex = htsmsg_get_str(c, "regex");
+        const char *source = htsmsg_get_str(c, "source");
+        const char *regex = htsmsg_get_str(c, "regex");
         if (dvr_filenaming_advanced_set_regex(&cfg->dvr_filenaming_advanced, regex_counter, source, regex))
           changed = 1;
 
@@ -1368,6 +1367,9 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
 
       htsmsg_destroy(r);
     }
+
+    if (changed)
+      dvr_config_save(cfg);
 #endif
 
     out = htsmsg_create_map();

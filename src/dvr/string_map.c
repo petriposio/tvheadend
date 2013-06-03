@@ -27,7 +27,7 @@ static int _key_cmp(void *a, void *b)
   return strcmp(((string_map_container_t*)a)->key, ((string_map_container_t*)b)->key);
 }
 
-static void _destroy_item(string_map_container_t *item)
+/*static void _destroy_item(string_map_container_t *item)
 {
   if(item->key)
     free(item->key);
@@ -36,7 +36,7 @@ static void _destroy_item(string_map_container_t *item)
     free(item->value);
 
   free(item);
-}
+}*/
 
 void string_map_init(string_map *map)
 {

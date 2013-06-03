@@ -1129,7 +1129,7 @@ dvr_init(void)
       if((s = htsmsg_get_str(m, "filename_advanced_filename")) != NULL)
         dvr_filenaming_advanced_set_filename_format(&cfg->dvr_filenaming_advanced, s);
 
-      if (t = htsmsg_get_list(m, "filename_advanced_regex") != NULL)
+      if ((t = htsmsg_get_list(m, "filename_advanced_regex")) != NULL)
       {
         int regex_counter = 0;
         TAILQ_FOREACH(g, &t->hm_fields, hmf_link)
@@ -1137,9 +1137,8 @@ dvr_init(void)
           if((u = htsmsg_get_map_by_field(g)) == NULL)
             continue;
 
-          char *source, *regex;
-          source = htsmsg_get_str(u, "source");
-          regex = htsmsg_get_str(u, "regex");
+          const char *source = htsmsg_get_str(u, "source");
+          const char *regex = htsmsg_get_str(u, "regex");
           dvr_filenaming_advanced_set_regex(&cfg->dvr_filenaming_advanced, regex_counter, source, regex);
 
           regex_counter++;
@@ -1293,8 +1292,8 @@ dvr_config_delete(const char *name)
 /**
  *
  */
-static void
-dvr_save(dvr_config_t *cfg)
+void
+dvr_config_save(dvr_config_t *cfg)
 {
   htsmsg_t *m = htsmsg_create_map();
   if (cfg->dvr_config_name != NULL && strlen(cfg->dvr_config_name) != 0)
@@ -1320,11 +1319,11 @@ dvr_save(dvr_config_t *cfg)
 
 #if ENABLE_ADVANCEDFILENAMES
   htsmsg_add_u32(m, "filename_mode", cfg->dvr_filename_mode);
-  htsmsg_add_str(m, "filename_advanced_filename", cfg->dvr_filenaming_advanced->filename_format);
+  htsmsg_add_str(m, "filename_advanced_filename", cfg->dvr_filenaming_advanced.filename_format);
 
   htsmsg_t *temp, *regexes = htsmsg_create_list();
   struct dvr_filename_scheme_advanced_list *i;
-  LIST_FOREACH (i, cfg->dvr_filenaming_advanced->regex_list, _link)
+  LIST_FOREACH (i, &cfg->dvr_filenaming_advanced.regex_list, _link)
   {
     temp = htsmsg_create_map();
     htsmsg_add_str(temp, "source", i->source);
@@ -1350,7 +1349,7 @@ dvr_storage_set(dvr_config_t *cfg, const char *storage)
     return;
 
   tvh_str_set(&cfg->dvr_storage, storage);
-  dvr_save(cfg);
+  dvr_config_save(cfg);
 }
 
 /**
@@ -1370,7 +1369,7 @@ dvr_container_set(dvr_config_t *cfg, const char *container)
 
   cfg->dvr_mc = mc;
 
-  dvr_save(cfg);
+  dvr_config_save(cfg);
 }
 
 
@@ -1384,7 +1383,7 @@ dvr_postproc_set(dvr_config_t *cfg, const char *postproc)
     return;
 
   tvh_str_set(&cfg->dvr_postproc, !strcmp(postproc, "") ? NULL : postproc);
-  dvr_save(cfg);
+  dvr_config_save(cfg);
 }
 
 
@@ -1406,7 +1405,7 @@ dvr_retention_set(dvr_config_t *cfg, int days)
     if(de->de_sched_state == DVR_COMPLETED)
       gtimer_arm_abs(&de->de_timer, dvr_timer_expire, de, 
 		     de->de_stop + cfg->dvr_retention_days * 86400);
-  dvr_save(cfg);
+  dvr_config_save(cfg);
 }
 
 
@@ -1420,7 +1419,7 @@ dvr_flags_set(dvr_config_t *cfg, int flags)
     return;
 
   cfg->dvr_flags = flags;
-  dvr_save(cfg);
+  dvr_config_save(cfg);
 }
 
 
@@ -1434,7 +1433,7 @@ dvr_extra_time_pre_set(dvr_config_t *cfg, int d)
     return;
 
   cfg->dvr_extra_time_pre = d;
-  dvr_save(cfg);
+  dvr_config_save(cfg);
 }
 
 
@@ -1448,7 +1447,7 @@ dvr_extra_time_post_set(dvr_config_t *cfg, int d)
     return;
 
   cfg->dvr_extra_time_post = d;
-  dvr_save(cfg);
+  dvr_config_save(cfg);
 }
 
 

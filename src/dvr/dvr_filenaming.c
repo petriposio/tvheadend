@@ -55,7 +55,7 @@ int dvr_filenaming_set_mode(dvr_config_t *cfg, int mode)
 
 static int change_str(char **target, const char *new)
 {
-  if (*target == new || (*target && new && strcmp(*target, new) == 0))
+  if (*target == new || (*target && new && strcmp(*target, new) == 0))
     return 0;
 
   if (new)
@@ -109,9 +109,9 @@ int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, in
   {
     struct dvr_filename_scheme_advanced_list *temp = calloc(1, sizeof(struct dvr_filename_scheme_advanced_list));
     if (i)
-      LIST_INSERT_AFTER(i, temp, _link)
+      LIST_INSERT_AFTER(i, temp, _link);
     else
-      LIST_INSERT_HEAD(scheme->regex_list, temp, _link);
+      LIST_INSERT_HEAD(&scheme->regex_list, temp, _link);
 
     i = temp;
   }
@@ -155,9 +155,11 @@ int dvr_filenaming_get_filename(char *destination, size_t max_size, dvr_filename
   dvr_filenaming_create_common_variables(&variables, de);
   dvr_filenaming_create_user_variables(&variables, scheme);
 
-  dvr_filenaming_fprint(destination, max_size, scheme->filename_regex, &variables);
+  dvr_filenaming_fprint(destination, max_size, scheme->filename_format, &variables);
 
   string_map_destroy(&variables);
+
+  return 1;
 }
 
 static void dvr_filenaming_create_common_variables(string_map *variables, dvr_entry_t *de)
@@ -171,11 +173,12 @@ static void dvr_filenaming_create_common_variables(string_map *variables, dvr_en
 static void dvr_filenaming_create_user_variables(string_map *variables, dvr_filename_scheme_advanced_t *scheme)
 {
   char source[STRING_SIZE];
-  int i;
-  for (i = 0; i < scheme->size; i++)
+
+  struct dvr_filename_scheme_advanced_list *i;
+  LIST_FOREACH (i, &scheme->regex_list, _link)
   {
-    dvr_filenaming_fprint(source, STRING_SIZE, scheme->source[i], variables);
-    dvr_filenaming_capturing_regex(variables, source, scheme->regex[i]);
+    dvr_filenaming_fprint(source, STRING_SIZE, i->source, variables);
+    dvr_filenaming_capturing_regex(variables, source, i->regex);
   }
 }
 
@@ -199,7 +202,7 @@ static void dvr_filenaming_capturing_regex(string_map *variables, const char *so
   if (match_count < 0)
     return;
 
-  if (match_count = 0) // more matches than the given array was able to hold
+  if (match_count == 0) // more matches than the given array was able to hold
     match_count = MAX_REGEX_MATCHES;
 
   int name_count, name_entry_size;
@@ -296,7 +299,7 @@ static void dvr_filenaming_fprint(char *destination, size_t max_size, const char
   }
 }
 
-int main(int argc, char **argv)
+/*int main(int argc, char **argv)
 {
   string_map variables;
   string_map_init(&variables);
@@ -315,5 +318,5 @@ int main(int argc, char **argv)
   string_map_destroy(&variables);
 
   return 0;
-}
+}*/
 

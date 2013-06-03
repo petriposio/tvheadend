@@ -268,6 +268,8 @@ dvr_config_t *dvr_config_find_by_name_default(const char *name);
 
 dvr_config_t *dvr_config_create(const char *name);
 
+void dvr_config_save(dvr_config_t *cfg);
+
 void dvr_config_delete(const char *name);
 
 void dvr_entry_notify(dvr_entry_t *de);
