@@ -729,7 +729,8 @@ tvheadend.dvrsettings = function() {
 	}, [ 'storage', 'postproc', 'retention', 'dayDirs', 'channelDirs',
 		'channelInTitle', 'container', 'dateInTitle', 'timeInTitle',
 		'preExtraTime', 'postExtraTime', 'whitespaceInTitle', 'titleDirs',
-		'episodeInTitle', 'cleanTitle', 'tagFiles', 'commSkip' ]);
+		'episodeInTitle', 'cleanTitle', 'tagFiles', 'commSkip', 'filename_mode',
+		'filename_advanced_filename', 'filename_advanced_regex' ]);
 
 	var confcombo = new Ext.form.ComboBox({
 		store : tvheadend.configNames,
@@ -815,10 +816,10 @@ tvheadend.dvrsettings = function() {
 		changeHandler: function(cycleButton, item) { filenamingpanel.layout.setActiveItem(item.itemId); },
 		items: [{
 			text: 'Basic',
-			itemId: 'filenaming_basic'
+			itemId: '1'
 		}, {
 			text: 'Advanced',
-			itemId: 'filenaming_advanced'
+			itemId: '2'
 		} ]
 	})
 
@@ -826,7 +827,7 @@ tvheadend.dvrsettings = function() {
 	 * Basic filenaming panel
 	 */
 	var filenaming_basic = new Ext.form.FieldSet({
-		id: 'filenaming_basic',
+		id: '1',
 		width: '100%',
 		height: '100%',
 		labelAlign : 'right',
@@ -859,11 +860,11 @@ tvheadend.dvrsettings = function() {
 		}) ]
 	});
 
-	var testData = [
-		[ 'asd', 'argh' ],
-		[ 'asd', 'argh' ],
-		[ 'asd', 'argh' ]
-	];
+	var testData = {
+		filename_advanced_regex: [
+			{source: 'asd', regex: 'argh'}
+		]
+	};
 
 	var filenaming_advanced_grid = new Ext.grid.EditorGridPanel({
 			flex: 1,
@@ -871,20 +872,31 @@ tvheadend.dvrsettings = function() {
 			enableHdMenu: false,
 			border: false,
 			viewConfig: { forceFit: true },
+			clicksToEdit: 1,
+			defaultType : 'textfield',
 			selModel: new Ext.grid.RowSelectionModel({ singleSelect : false }),
-			store: new Ext.data.ArrayStore({
-				data: testData,
-				autoDestroy: true,
-				fields: [
-					{ name: 'source', type: 'string' },
-					{ name: 'regex', type: 'string' }
-				]
-			}),
 			colModel: new Ext.grid.ColumnModel({
 				defaultSortable: false,
 				columns: [
-					{ header: 'Source', dataIndex: 'source', width: 1 },
-					{ header: 'Parsing regex', dataIndex: 'regex', width: 2 }
+					{
+						header: 'Source',
+						dataIndex: 'source',
+						width: 1,
+						editor: new Ext.form.TextField()
+					},
+					{
+						header: 'Parsing regex',
+						dataIndex: 'regex',
+						width: 2,
+						editor: new Ext.form.TextField()
+					}
+				]
+			}),
+			store: new Ext.data.JsonStore({
+				root: 'filename_advanced_regex',
+				fields: [
+					{ name: 'source', type: 'string' },
+					{ name: 'regex', type: 'string' }
 				]
 			})
 	});
@@ -893,7 +905,7 @@ tvheadend.dvrsettings = function() {
 	 * Advanced filenaming panel
 	 */
 	var filenaming_advanced = new Ext.Panel({
-		id: 'filenaming_advanced',
+		id: '2',
 		width: '100%',
 		border: false,
 		waitMsgTarget : true,
@@ -955,7 +967,7 @@ tvheadend.dvrsettings = function() {
 		width: 500,
 		height: 300,
 		layout: 'card',
-		activeItem: 'filenaming_basic',
+		activeItem: '1',
 		waitMsgTarget : true,
 		items : [ filenaming_basic, filenaming_advanced ],
 		tbar: [ filenameModeButton ]
@@ -1006,7 +1018,11 @@ tvheadend.dvrsettings = function() {
 			},
 			success : function(form, action) {
 				var filename_mode = action.result.data.filename_mode;
-				filenameModeButton.setActiveItem(filename_mode);
+				var filename_advanced_regex = action.result.data;
+				if (filename_advanced_regex)
+					filenaming_advanced_grid.getStore().loadData(filename_advanced_regex);
+				if (filename_mode)
+					filenameModeButton.setActiveItem(filename_mode);
 				confpanel.enable();
 			}
 		});

@@ -1268,15 +1268,15 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
 
 #if ENABLE_ADVANCEDFILENAMES
     htsmsg_add_u32(r, "filename_mode", cfg->dvr_filename_mode);
-    htsmsg_add_str(r, "filename_advanced_filename", cfg->dvr_filenaming_advanced.filename_format);
+    htsmsg_add_str(r, "filename_advanced_filename", cfg->dvr_filenaming_advanced.filename_format ? cfg->dvr_filenaming_advanced.filename_format : "");
 
     htsmsg_t *temp, *regexes = htsmsg_create_list();
     struct dvr_filename_scheme_advanced_list *i;
     LIST_FOREACH (i, &cfg->dvr_filenaming_advanced.regex_list, _link)
     {
       temp = htsmsg_create_map();
-      htsmsg_add_str(temp, "source", i->source);
-      htsmsg_add_str(temp, "regex", i->regex);
+      htsmsg_add_str(temp, "source", i->source ? i->source : "");
+      htsmsg_add_str(temp, "regex", i->regex ? i->regex : "");
       htsmsg_add_msg(regexes, NULL, temp);
     }
     htsmsg_add_msg(r, "filename_advanced_regex", regexes);

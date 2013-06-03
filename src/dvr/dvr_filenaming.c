@@ -53,38 +53,14 @@ int dvr_filenaming_set_mode(dvr_config_t *cfg, int mode)
   return 1;
 }
 
-static int change_str(char **target, const char *new)
+static int change_str(char **target, const char *source)
 {
-  if (*target == new || (*target && new && strcmp(*target, new) == 0))
+  if (*target == source || (*target && source && strcmp(*target, source) == 0))
     return 0;
 
-  if (new)
-  {
+  if (*target)
     free (*target);
-    *target = NULL;
-  }
-  else
-  {
-    int old_length = *target ? strlen(*target) : 0;
-    int new_length = new ? strlen(new) : 0;
-
-    if (new_length == 0)
-    {
-      if (*target)
-        free (*target);
-      *target = NULL;
-    }
-    else
-    {
-      if (old_length < new_length)
-      {
-        if (*target)
-          free (*target);
-        *target = calloc(1, new_length * sizeof (char));
-      }
-      strcpy(*target, new);
-    }
-  }
+  *target = source ? strdup(source) : NULL;
 
   return 1;
 }
