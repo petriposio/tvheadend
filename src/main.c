@@ -112,7 +112,7 @@ static cmdline_opt_t* cmdline_opt_find
  * Globals
  */
 int              tvheadend_webui_port;
-int              tvheadend_webui_debug;
+int              tvheadend_webui_debug = 1;
 int              tvheadend_htsp_port;
 int              tvheadend_htsp_port_extra;
 const char      *tvheadend_cwd;

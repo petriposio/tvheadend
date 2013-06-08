@@ -117,125 +117,6 @@ dvr_rec_unsubscribe(dvr_entry_t *de, int stopcode)
   de->de_last_error = stopcode;
 }
 
-
-/**
- * Replace various chars with a dash
- */
-static void
-cleanupfilename(char *s, int dvr_flags)
-{
-  int i, len = strlen(s);
-  for(i = 0; i < len; i++) { 
-
-    if(s[i] == '/')
-      s[i] = '-';
-
-    else if((dvr_flags & DVR_WHITESPACE_IN_TITLE) &&
-            (s[i] == ' ' || s[i] == '\t'))
-      s[i] = '-';	
-
-    else if((dvr_flags & DVR_CLEAN_TITLE) &&
-            ((s[i] < 32) || (s[i] > 122) ||
-             (strchr("/:\\<>|*?'\"", s[i]) != NULL)))
-      s[i] = '-';
-  }
-}
-
-/**
- * Filename generator
- *
- * - convert from utf8
- * - avoid duplicate filenames
- *
- */
-static int
-pvr_generate_filename(dvr_entry_t *de, const streaming_start_t *ss)
-{
-  char fullname[1000];
-  char path[500];
-  int tally = 0;
-  struct stat st;
-  char filename[1000];
-  struct tm tm;
-  dvr_config_t *cfg = dvr_config_find_by_name_default(de->de_config_name);
-
-  dvr_make_title(filename, sizeof(filename), de);
-  cleanupfilename(filename,cfg->dvr_flags);
-
-  snprintf(path, sizeof(path), "%s", cfg->dvr_storage);
-
-  /* Remove trailing slash */
-
-  if (path[strlen(path)-1] == '/')
-    path[strlen(path)-1] = '\0';
-
-  /* Append per-day directory */
-
-  if(cfg->dvr_flags & DVR_DIR_PER_DAY) {
-    localtime_r(&de->de_start, &tm);
-    strftime(fullname, sizeof(fullname), "%F", &tm);
-    cleanupfilename(fullname,cfg->dvr_flags);
-    snprintf(path + strlen(path), sizeof(path) - strlen(path), 
-	     "/%s", fullname);
-  }
-
-  /* Append per-channel directory */
-
-  if(cfg->dvr_flags & DVR_DIR_PER_CHANNEL) {
-
-    char *chname = strdup(DVR_CH_NAME(de));
-    cleanupfilename(chname,cfg->dvr_flags);
-    snprintf(path + strlen(path), sizeof(path) - strlen(path), 
-	     "/%s", chname);
-    free(chname);
-  }
-
-  // TODO: per-brand, per-season
-
-  /* Append per-title directory */
-
-  if(cfg->dvr_flags & DVR_DIR_PER_TITLE) {
-
-    char *title = strdup(lang_str_get(de->de_title, NULL));
-    cleanupfilename(title,cfg->dvr_flags);
-    snprintf(path + strlen(path), sizeof(path) - strlen(path), 
-	     "/%s", title);
-    free(title);
-  }
-
-
-  /* */
-  if(makedirs(path, 0777) != 0) {
-    return -1;
-  }
-  
-
-  /* Construct final name */
-  
-  snprintf(fullname, sizeof(fullname), "%s/%s.%s",
-	   path, filename, muxer_suffix(de->de_mux, ss));
-
-  while(1) {
-    if(stat(fullname, &st) == -1) {
-      tvhlog(LOG_DEBUG, "dvr", "File \"%s\" -- %s -- Using for recording",
-	     fullname, strerror(errno));
-      break;
-    }
-
-    tvhlog(LOG_DEBUG, "dvr", "Overwrite protection, file \"%s\" exists", 
-	   fullname);
-
-    tally++;
-
-    snprintf(fullname, sizeof(fullname), "%s/%s-%d.%s",
-	     path, filename, tally, muxer_suffix(de->de_mux, ss));
-  }
-
-  tvh_str_set(&de->de_filename, fullname);
-
-  return 0;
-}
-
 /**
  *
  */
@@ -254,7 +135,6 @@ dvr_rec_fatal_error(dvr_entry_t *de, const char *fmt, ...)
 	 "Recording error: \"%s\": %s",
 	 de->de_filename ?: lang_str_get(de->de_title, NULL), msgbuf);
 }
-
 
 /**
  *

@@ -16,7 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -27,7 +26,7 @@ static int _key_cmp(void *a, void *b)
   return strcmp(((string_map_container_t*)a)->key, ((string_map_container_t*)b)->key);
 }
 
-/*static void _destroy_item(string_map_container_t *item)
+static void _destroy_item(string_map_container_t *item)
 {
   if(item->key)
     free(item->key);
@@ -36,7 +35,7 @@ static int _key_cmp(void *a, void *b)
     free(item->value);
 
   free(item);
-}*/
+}
 
 void string_map_init(string_map *map)
 {
@@ -45,7 +44,12 @@ void string_map_init(string_map *map)
 
 void string_map_destroy(string_map *map)
 {
-  // TODO: destroy
+  string_map_container_t *i;
+  while ((i = RB_FIRST(map)))
+  {
+    RB_REMOVE(map, i, rb_link);
+    _destroy_item(i);
+  }
 }
 
 // TODO: better way than this?
@@ -72,7 +76,12 @@ void string_map_set(string_map *map, const char *key, const char *value)
 
 void string_map_remove(string_map *map, const char *key)
 {
-  // TODO: remove
+  string_map_container_t i;
+  i.key = (char*) key;
+
+  string_map_container_t *item = RB_FIND(map, &i, rb_link, _key_cmp);
+  RB_REMOVE(map, item, rb_link);
+  _destroy_item(item);
 }
 
 const char* string_map_get(const string_map *map, const char *key)

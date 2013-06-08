@@ -28,9 +28,6 @@
 #include "lang_str.h"
 #include "dvr_filenaming.h"
 
-#define DVR_FILENAMEMODE_BASIC 1
-#define DVR_FILENAMEMODE_ADVANCED 2
-
 typedef struct dvr_config {
   char *dvr_config_name;
   char *dvr_storage;
@@ -78,6 +75,9 @@ extern struct dvr_entry_list dvrentries;
 #define DVR_CLEAN_TITLE	        0x100
 #define DVR_TAG_FILES           0x200
 #define DVR_SKIP_COMMERCIALS    0x400
+
+#define DVR_FILENAMEMODE_BASIC 1
+#define DVR_FILENAMEMODE_ADVANCED 2
 
 typedef enum {
   DVR_PRIO_IMPORTANT,
@@ -259,9 +259,6 @@ typedef struct dvr_autorec_entry {
 /**
  * Prototypes
  */
-
-void dvr_make_title(char *output, size_t outlen, dvr_entry_t *de);
-
 dvr_config_t *dvr_config_find_by_name(const char *name);
 
 dvr_config_t *dvr_config_find_by_name_default(const char *name);

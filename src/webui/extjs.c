@@ -1367,7 +1367,7 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
 
       htsmsg_destroy(r);
 
-      if (dvr_filenaming_advanced_set_regex_size(&cfg->dvr_filenaming_advanced, regex_counter))
+      if (dvr_filenaming_advanced_set_regex_maxsize(&cfg->dvr_filenaming_advanced, regex_counter))
         changed = 1;
     }
 

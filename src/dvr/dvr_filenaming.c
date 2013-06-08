@@ -1,5 +1,5 @@
 /*
- *  Digital Video Recorder
+ *  Digital Video Recorder - filenaming
  *  Copyright (C) 2013 Petri Posio
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -16,316 +16,223 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
-
+#include "config.h"
 #include "dvr_filenaming.h"
 #include "dvr.h"
-#include "string_map.h"
-#include "queue.h"
-#include "pcre.h"
 
-#define STRING_SIZE 200
-#define MAX_REGEX_MATCHES 40
+static int dvr_filenaming_basic_generate(dvr_entry_t *de, dvr_config_t *cfg);
 
-#define CHANNEL_KEY     "channel"
-#define CREATOR_KEY     "creator"
-#define TITLE_KEY       "title"
-#define DESCRIPTION_KEY "description"
+static void remove_slashes(char *s);
+static void remove_specialcharacters(char *s, int dvr_flags);
+static void dvr_filenaming_basic_make_title(char *output, size_t outlen, dvr_entry_t *de, dvr_config_t *cfg);
 
-/**
- * Declarations
- */
-static void dvr_filenaming_create_common_variables(string_map *variables, dvr_entry_t *de);
-static void dvr_filenaming_create_user_variables(string_map *variables, dvr_filename_scheme_advanced_t *scheme);
+static int construct_final_filename(dvr_entry_t *de, const streaming_start_t *ss);
 
-static void dvr_filenaming_capturing_regex(string_map *variables, const char *source, const char *regex);
-static void dvr_filenaming_fprint(char *destination, size_t max_size, const char *source, const string_map *variables);
-
-static void dvr_filenaming_destroy_regex(struct dvr_filename_scheme_advanced_list *regex);
-
-/**
- * Definitions
- */
-static void dvr_filenaming_destroy_regex(struct dvr_filename_scheme_advanced_list *regex)
+int dvr_filenaming_generate_filename(char *destination, size_t max_size, struct dvr_entry *de, const streaming_start_t *ss)
 {
-  if (regex->source)
-    free(regex->source);
-  if (regex->regex)
-    free(regex->regex);
-  free(regex);
-}
+  dvr_config_t *cfg = dvr_config_find_by_name_default(de->de_config_name);
 
-int dvr_filenaming_set_mode(dvr_config_t *cfg, int mode)
-{
-  if (cfg->dvr_filename_mode == mode)
-    return 0;
+  int ret;
 
-  cfg->dvr_filename_mode = mode;
-  return 1;
-}
-
-static int change_str(char **target, const char *source)
-{
-  if (*target == source || (*target && source && strcmp(*target, source) == 0))
-    return 0;
-
-  if (*target)
-    free (*target);
-  *target = source ? strdup(source) : NULL;
-
-  return 1;
-}
-
-int dvr_filenaming_advanced_set_filename_format(dvr_filename_scheme_advanced_t *scheme, const char *format)
-{
-  return change_str(&scheme->filename_format, format);
-}
-
-int dvr_filenaming_advanced_set_regex(dvr_filename_scheme_advanced_t *scheme, int index, const char *source, const char *regex)
-{
-  index++;
-  struct dvr_filename_scheme_advanced_list *i, *last = NULL;
-  LIST_FOREACH (i, &scheme->regex_list, _link)
+#if !ENABLE_ADVANCEDFILENAMES
+  ret = dvr_filenaming_basic_generate(de, cfg, ss);
+#else
+  switch (cfg->dvr_filename_mode)
   {
-    last = i;
-    index--;
-    if (index == 0)
-      break;
+  case DVR_FILENAMEMODE_ADVANCED:
+    //dvr_filenaming_advanced_generate
+    break;
+  case DVR_FILENAMEMODE_BASIC:
+  default:
+    ret = dvr_filenaming_basic_generate(de, cfg, ss);
+    break;
   }
+#endif
 
-  if (index != 0)
+  //remove_specialcharacters();
+  //construct_final_filename();
+
+  return ret;
+}
+
+static void remove_slashes(char *s)
+{
+  for (; *s; s++)
   {
-    struct dvr_filename_scheme_advanced_list *temp = calloc(1, sizeof(struct dvr_filename_scheme_advanced_list));
-    if (last)
-      LIST_INSERT_AFTER(last, temp, _link);
-    else
-      LIST_INSERT_HEAD(&scheme->regex_list, temp, _link);
-
-    i = temp;
-  }
-
-  int changed = 0;
-  if (change_str(&i->source, source))
-    changed = 1;
-  if (change_str(&i->regex, regex))
-    changed = 1;
-
-  return changed;
-}
-
-int dvr_filenaming_advanced_set_regex_size(dvr_filename_scheme_advanced_t *scheme, int size)
-{
-  struct dvr_filename_scheme_advanced_list *i, *last = NULL;
-  LIST_FOREACH (i, &scheme->regex_list, _link)
-  {
-    if (size > 0)
-      size--;
-    else
-    {
-      if (last)
-      {
-        LIST_REMOVE(last, _link);
-        dvr_filenaming_destroy_regex(last);
-      }
-      last = i;
-    }
-  }
-  if (last)
-  {
-    LIST_REMOVE(last, _link);
-    dvr_filenaming_destroy_regex(last);
-  }
-
-  return last != NULL;
-}
-
-void dvr_filenaming_advanced_init(dvr_filename_scheme_advanced_t *scheme)
-{
-  scheme->filename_format = NULL;
-  LIST_INIT(&scheme->regex_list);
-}
-
-void dvr_filenaming_advanced_destroy(dvr_filename_scheme_advanced_t *scheme)
-{
-  struct dvr_filename_scheme_advanced_list *i;
-  while (!LIST_EMPTY(&scheme->regex_list))
-  {
-    i = LIST_FIRST(&scheme->regex_list);
-    LIST_REMOVE(i, _link);
-    dvr_filenaming_destroy_regex(i);
-  }
-}
-
-int dvr_filenaming_get_filename(char *destination, size_t max_size, dvr_filename_scheme_advanced_t *scheme, dvr_entry_t *de)
-{
-  string_map variables;
-  string_map_init(&variables);
-
-  dvr_filenaming_create_common_variables(&variables, de);
-  dvr_filenaming_create_user_variables(&variables, scheme);
-
-  dvr_filenaming_fprint(destination, max_size, scheme->filename_format, &variables);
-
-  string_map_destroy(&variables);
-
-  return 1;
-}
-
-static void dvr_filenaming_create_common_variables(string_map *variables, dvr_entry_t *de)
-{
-  string_map_set(variables, CHANNEL_KEY, DVR_CH_NAME(de));
-  string_map_set(variables, CREATOR_KEY, de->de_creator);
-  //string_map_set(variables, TITLE_KEY, lang_str_get(de->de_title, NULL));
-  //string_map_set(variables, DESCRIPTION_KEY, lang_str_get(de->de_desc, NULL));
-}
-
-static void dvr_filenaming_create_user_variables(string_map *variables, dvr_filename_scheme_advanced_t *scheme)
-{
-  char source[STRING_SIZE];
-
-  struct dvr_filename_scheme_advanced_list *i;
-  LIST_FOREACH (i, &scheme->regex_list, _link)
-  {
-    dvr_filenaming_fprint(source, STRING_SIZE, i->source, variables);
-    dvr_filenaming_capturing_regex(variables, source, i->regex);
+    if(*s == '/')
+      *s = '-';
   }
 }
 
 /**
- * Capturing regex
+ * Replace various chars with a dash
  */
-static void dvr_filenaming_capturing_regex(string_map *variables, const char *source, const char *regex)
+static void remove_specialcharacters(char *s, int dvr_flags)
 {
-  const char *error;
-  int error_offset;
-
-  pcre *reg = pcre_compile(regex, PCRE_EXTENDED, &error, &error_offset, NULL);
-  if (!reg)
-  {
-    printf("pcre_compile failed (offset: %d), %s\n", error_offset, error);
-    return;
-  }
-
-  int matches[MAX_REGEX_MATCHES * 2];
-  int match_count = pcre_exec(reg, 0, source, strlen(source), 0, 0, matches, MAX_REGEX_MATCHES);
-  if (match_count < 0)
+  int clean_white = dvr_flags & DVR_WHITESPACE_IN_TITLE;
+  int clean_special = dvr_flags & DVR_CLEAN_TITLE;
+  if (! (clean_white || clean_special))
     return;
 
-  if (match_count == 0) // more matches than the given array was able to hold
-    match_count = MAX_REGEX_MATCHES;
-
-  int name_count, name_entry_size;
-  uschar *nametable;
-
-  if (pcre_get_nametable(reg, &nametable, &name_count, &name_entry_size) == 0)
+  for (; *s; s++)
   {
-    char *name;
-    const char *value;
-    int substring_index;
+    if(clean_white && (*s == ' ' || *s == '\t'))
+      *s = '-';
+    else if(clean_special &&
+             ((*s < 32) || (*s > 122) ||
+             (strchr(":\\<>|*?'\"", *s) != NULL)))
+      *s = '-';
+  }
+}
 
-    int i;
-    for (i = 0; i < name_count; i++)
-    {
-      pcre_nametable_get_item(nametable, name_entry_size, i, &name, &substring_index);
-      pcre_get_substring(source, matches, MAX_REGEX_MATCHES, substring_index, &value);
+static int construct_final_filename(const char *filename, dvr_entry_t *de, const streaming_start_t *ss)
+{
+  char *path_end = strrchr(filename, '/');
+  if (!path_end)
+    return -1;
 
-      string_map_set(variables, name, value);
+  char *path;
+  if (asprintf(&path, "%.*s", path_end - filename, filename) == -1)
+    return -2;
 
-      pcre_free_substring(value);
-    }
+  if(makedirs(path, 0777) != 0)
+    return -1;
+
+  const char *suffix = muxer_suffix(de->de_mux, ss);
+
+  const int max_tally = 100000;
+  size_t buffer_size = strlen(filename) + strlen(suffix) + 3 + (int) log10(max_tally);
+  char *buffer = calloc(buffer_size * sizeof(char));
+  if (!buffer)
+  {
+    free(path);
+    return -2;
   }
 
-  pcre_free(reg);
+  /* Construct final name */
+  snprintf(buffer, buffer_size, "%s.%s", filename, suffix);
+
+  int tally;
+  for (tally = 0; tally <= max_tally; tally++) {
+    if(stat(buffer, &st) == -1) {
+      tvhlog(LOG_DEBUG, "dvr", "File \"%s\" -- %s -- Using for recording",
+	     buffer, strerror(errno));
+      break;
+    }
+
+    tvhlog(LOG_DEBUG, "dvr", "Overwrite protection, file \"%s\" exists", 
+	   buffer);
+
+    tally++;
+
+    snprintf(buffer, buffer_size, "%s-%d.%s",
+	     filename, tally, suffix);
+  }
+
+  free(path);
+
+  if (de->de_filename)
+    free(de->de_filename);
+  de->filename = buffer;
+}
+
+static void dvr_filenaming_basic_make_title(char *output, size_t outlen, dvr_entry_t *de, dvr_config_t *cfg)
+{
+  struct tm tm;
+  char buf[40];
+  int i;
+
+  if(cfg->dvr_flags & DVR_CHANNEL_IN_TITLE)
+    snprintf(output, outlen, "%s-", DVR_CH_NAME(de));
+  else
+    output[0] = 0;
+
+  snprintf(output + strlen(output), outlen - strlen(output),
+	   "%s", lang_str_get(de->de_title, NULL));
+
+  localtime_r(&de->de_start, &tm);
+
+  if(cfg->dvr_flags & DVR_DATE_IN_TITLE) {
+    strftime(buf, sizeof(buf), "%F", &tm);
+    snprintf(output + strlen(output), outlen - strlen(output), ".%s", buf);
+  }
+
+  if(cfg->dvr_flags & DVR_TIME_IN_TITLE) {
+    strftime(buf, sizeof(buf), "%H-%M", &tm);
+    snprintf(output + strlen(output), outlen - strlen(output), ".%s", buf);
+  }
+
+  if(cfg->dvr_flags & DVR_EPISODE_IN_TITLE) {
+    if(de->de_bcast && de->de_bcast->episode)  
+      epg_episode_number_format(de->de_bcast->episode,
+                                output + strlen(output),
+                                outlen - strlen(output),
+                                ".", "S%02d", NULL, "E%02d", NULL);
+  }
 }
 
 /**
- * Formatted printing with variables from captured regexes
+ * Filename generator
+ *
+ * - convert from utf8
+ * - avoid duplicate filenames
+ *
  */
-static void dvr_filenaming_fprint(char *destination, size_t max_size, const char *source, const string_map *variables)
+static int dvr_filenaming_basic_generate(dvr_entry_t *de, dvr_config_t *cfg, const streaming_start_t *ss)
 {
-  char temp_key[STRING_SIZE];
+  char fullname[1000];
+  char path[500];
+  int tally = 0;
+  struct stat st;
+  char filename[1000];
+  struct tm tm;
 
-  const char special[] = "%";
+  dvr_filenaming_basic_make_title(filename, sizeof(filename), de, cfg);
+  clean_filename(filename,cfg->dvr_flags);
 
-  size_t next_special;
-  size_t copy_size;
-  while (1)
-  {
-    // Part before special character, copy it all
-    next_special = strcspn(source, special);
-    copy_size = next_special < max_size ? next_special : max_size - 1;
+  snprintf(path, sizeof(path), "%s", cfg->dvr_storage);
 
-    strncpy(destination, source, copy_size);
+  /* Remove trailing slash */
 
-    destination += copy_size;
-    max_size -= copy_size;
-    source += next_special;
+  if (path[strlen(path)-1] == '/')
+    path[strlen(path)-1] = '\0';
 
-    if (*source == '\0' || max_size <= 0)
-    {
-      *destination = '\0';
-      break;
-    }
-    source++;
+  /* Append per-day directory */
 
-    // Get the key name between special characters
-    next_special = strcspn(source, special);
-
-    if (next_special == 0)
-    {
-      *destination = *source;
-      if (*source == '\0')
-        break;
-      source++;
-      destination++;
-      max_size--;
-      continue;
-    }
-
-    copy_size = next_special < STRING_SIZE ? next_special : STRING_SIZE - 1;
-    strncpy(temp_key, source, copy_size);
-    temp_key[copy_size] = '\0';
-    source += next_special;
-
-    const char *value = string_map_get(variables, temp_key);
-    if (value)
-    {
-      copy_size = strlen(value);
-      copy_size = copy_size < max_size ? copy_size : max_size - 1;
-
-      strncpy(destination, value, copy_size);
-
-      destination += copy_size;
-      max_size -= copy_size;
-    }
-
-    if (*source == '\0' || max_size <= 0)
-    {
-      *destination = '\0';
-      break;
-    }
-    source++;
+  if(cfg->dvr_flags & DVR_DIR_PER_DAY) {
+    localtime_r(&de->de_start, &tm);
+    strftime(fullname, sizeof(fullname), "%F", &tm);
+    remove_slashes(fullname);
+    snprintf(path + strlen(path), sizeof(path) - strlen(path), 
+	     "/%s", fullname);
   }
-}
 
-/*int main(int argc, char **argv)
-{
-  string_map variables;
-  string_map_init(&variables);
+  /* Append per-channel directory */
 
-  char temp[STRING_SIZE];
+  if(cfg->dvr_flags & DVR_DIR_PER_CHANNEL) {
 
-  dvr_filenaming_fprint(temp, STRING_SIZE, "S02E08 - testi (k18)", &variables);
-  dvr_filenaming_capturing_regex(&variables, temp, "^(S(?<season>\\d*))?(E(?<episode>\\d*))?(?<name>.*?)(\\(k(?<classification>.*?)\\))?$");
+    char *chname = strdup(DVR_CH_NAME(de));
+    remove_slashes(chname);
+    snprintf(path + strlen(path), sizeof(path) - strlen(path), 
+	     "/%s", chname);
+    free(chname);
+  }
 
-  dvr_filenaming_fprint(temp, STRING_SIZE, "%name%", &variables);
-  dvr_filenaming_capturing_regex(&variables, temp, "^[ -]*(?<name>.*?)[ ]*$");
+  // TODO: per-brand, per-season
 
-  dvr_filenaming_fprint(temp, STRING_SIZE, "nimi: %season% %episode% %name% %classification%", &variables);
-  printf("%s\n", temp);
+  /* Append per-title directory */
 
-  string_map_destroy(&variables);
+  if(cfg->dvr_flags & DVR_DIR_PER_TITLE) {
+
+    char *title = strdup(lang_str_get(de->de_title, NULL));
+    remove_slashes(title);
+    snprintf(path + strlen(path), sizeof(path) - strlen(path), 
+	     "/%s", title);
+    free(title);
+  }
+
+  tvh_str_set(&de->de_filename, fullname);
 
   return 0;
-}*/
+}
 

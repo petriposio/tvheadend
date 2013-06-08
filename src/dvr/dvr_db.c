@@ -161,60 +161,6 @@ dvr_entry_notify(dvr_entry_t *de)
   notify_by_msg("dvrdb", m);
 }
 
-
-/**
- *
- */
-void
-dvr_make_title(char *output, size_t outlen, dvr_entry_t *de)
-{
-  struct tm tm;
-  char buf[40];
-  int i;
-  dvr_config_t *cfg = dvr_config_find_by_name_default(de->de_config_name);
-
-  if(cfg->dvr_flags & DVR_CHANNEL_IN_TITLE)
-    snprintf(output, outlen, "%s-", DVR_CH_NAME(de));
-  else
-    output[0] = 0;
-  
-  snprintf(output + strlen(output), outlen - strlen(output),
-	   "%s", lang_str_get(de->de_title, NULL));
-
-  localtime_r(&de->de_start, &tm);
-  
-  if(cfg->dvr_flags & DVR_DATE_IN_TITLE) {
-    strftime(buf, sizeof(buf), "%F", &tm);
-    snprintf(output + strlen(output), outlen - strlen(output), ".%s", buf);
-  }
-
-  if(cfg->dvr_flags & DVR_TIME_IN_TITLE) {
-    strftime(buf, sizeof(buf), "%H-%M", &tm);
-    snprintf(output + strlen(output), outlen - strlen(output), ".%s", buf);
-  }
-
-  if(cfg->dvr_flags & DVR_EPISODE_IN_TITLE) {
-    if(de->de_bcast && de->de_bcast->episode)  
-      epg_episode_number_format(de->de_bcast->episode,
-                                output + strlen(output),
-                                outlen - strlen(output),
-                                ".", "S%02d", NULL, "E%02d", NULL);
-  }
-
-  if(cfg->dvr_flags & DVR_CLEAN_TITLE) {
-        for (i=0;i<strlen(output);i++) {
-                if (
-                        output[i]<32 ||
-                        output[i]>122 ||
-                        output[i]==34 ||
-                        output[i]==39 ||
-                        output[i]==92 ||
-                        output[i]==58
-                        ) output[i]='_';
-        }
-  }
-}
-
 static void
 dvr_entry_set_timer(dvr_entry_t *de)
 {

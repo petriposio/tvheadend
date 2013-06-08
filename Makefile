@@ -132,6 +132,8 @@ SRCS += src/plumbing/tsfix.c \
 SRCS += src/dvr/dvr_db.c \
 	src/dvr/dvr_rec.c \
 	src/dvr/dvr_autorec.c \
+	src/dvr/dvr_filenaming.c \
+        src/dvr/string_map.c \
 
 SRCS += src/webui/webui.c \
 	src/webui/comet.c \
@@ -196,10 +198,8 @@ SRCS-$(CONFIG_LIBAV) += src/libav.c \
 SRCS-${CONFIG_CWC} += src/cwc.c \
 	src/capmt.c \
 
-# ADVANCED FILENAMES
 SRCS-${CONFIG_ADVANCEDFILENAMES} += \
-	src/dvr/dvr_filenaming.c \
-        src/dvr/string_map.c
+	src/dvr/dvr_filenaming_advanced.c
 
 # FFdecsa
 ifneq ($(CONFIG_DVBCSA),yes)
